@@ -31,7 +31,6 @@
      height: expression(document.body.scrollHeight > document.body.offsetHeight ? document.body.scrollHeight : document.body.offsetHeight + 'px');
 }
 
-
 .mm-popup {
     position:absolute;
     z-index:500;
@@ -183,23 +182,4 @@
 }
 .mmpop-aero .cancel-button:hover {
 	background: #E6E6E6;
-}
-
-
-/* mm loading */
-.mm-loading {
-    background-color: #FEFEFE;
-    border: 1px solid #aaa;
-    padding: 10px 30px;
-    position: absolute;
-    z-index: 1000;
-    text-align: center;
-}
-.mm-loading p {
-    background: url("loading-bars.gif") no-repeat scroll center 28px;
-    color: #2E780D;
-    font-size: 14px;
-    font-style: italic;
-    height: 45px;
-    min-width: 100px;
 }

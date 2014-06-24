@@ -12,19 +12,16 @@
     }
 }(this, function($){
 
-    var pub = {};
-
-    pub.$$ = function(obj) {
+    var $$ = function(obj) {
         return obj instanceof $ ? obj : $(obj)
-    }
+    };
 
-    +function (pub) {
         var Position = {};
 
         Position.pin = function(pinElem, baseObject) {
-            var baseElem = pub.$$(baseObject.elem);
+            var baseElem = $$(baseObject.elem);
             var basePos = baseElem.offset();
-            pinElem = pub.$$(pinElem);
+            pinElem = $$(pinElem);
             var posTop, posLeft;
 
             var pinPos = baseObject.pos;
@@ -88,8 +85,8 @@
         };
 
         Position.center = function(pinElem, baseElem) {
-            pinElem = pub.$$(pinElem);
-            baseElem = pub.$$(baseElem) || $(window);
+            pinElem = $$(pinElem);
+            baseElem = $$(baseElem || window);
             var posLeft = parseInt((baseElem.width() - pinElem.outerWidth()) / 2, 10);
             var posTop = baseElem.height() - pinElem.outerHeight();
             posTop = (posTop < 0 ? 0 : parseInt(posTop / 2, 10)) + $(document).scrollTop();
@@ -100,12 +97,8 @@
             });
         };
 
-        pub.Position = Position
-
-    }(pub);
 
 
-    +function (pub) {
 
         var isIE6 = !window.XMLHttpRequest
 
@@ -149,15 +142,6 @@
             }
         };
 
-        pub.Mask = Mask;
-
-    }(pub);
-
-
-    +function (pub) {
-
-        var Position = pub.Position;
-        var Overlay = pub.Overlay;
 
         /* Loading CLASS DEFINITION
          * ====================== */
@@ -192,50 +176,147 @@
             }
         };
 
-        pub.Loading = Loading;
-
-    }(pub);
-
-
-    +function (pub) {
-
         /* Overlay CLASS DEFINITION
          * ====================== */
         var Overlay = function(options) {
             var defaults = {
-                zIndex: 499,
-                opacity: 0.4,
+                // element, template, width, height, id , className, trigger
+                parentNode: document.body,
+                position: 'absolute',
+                top: '-9999px',
+                left: '-9999px',
+                zIndex: 99,
+                visible: false,
+                hideBlur: false,
+                align: ''
             }
             this.options = $.extend(defaults, options);
-            this. init();
+            if(this.options.visible){
+                this.init()
+            }
         }
 
+        // 绑定 blur 隐藏事件
+        Overlay.blurOverlays = [];
+        $(document).on('click', function (e) {
+            hideBlurOverlays(e);
+        });
+
         Overlay.prototype = {
+            // constructor: Overlay,
             init: function() {
-                this.overlayer = $('<div id="dm_window_overlay"></div>').appendTo('body').css({'z-index': this.options.zIndex, 'opacity': this.options.opacity});
+                var options = this.options;
+                var parentNode = $$(options.parentNode);
+                this.layer = $$(options.element || options.template);
+                options.id && this.layer.attr('id', options.id);
+                options.className && this.layer.addClass(options.className)
+                this.layer.css({
+                    'position': options.position,
+                    'z-index': options.zIndex,
+                    'top': options.top,
+                    'left': options.left,
+                    'display': options.visible ? 'block' : 'none'
+                });
+                options.width && this.layer.css('width', options.width);
+                options.height && this.layer.css('height', options.height);
+                this.layer.appendTo(parentNode);
+
+                if(options.align){
+                    var align = options.align;
+                    if(align.elem && align.pos){
+                        Position.pin(this.layer, align)
+                    } else {
+                        Position.center(this.layer, align)
+                    }
+                } else {
+                    Position.center(this.layer)
+                }
+
+                if(options.hideBlur){
+                    Overlay.blurOverlays.push(this);
+                }
+                if(options.trigger){
+                    this.triggerElement = options.trigger[0] || options.trigger;
+                }
+                this.element = this.layer[0];
             },
             show : function() {
-                this.overlayer.show();
-                if (this.masklayer) {
-                    this.masklayer.show();
+                if(!this.layer){
+                    this.init()
                 }
+                this.layer.show();
             },
             hide : function() {
-                this.overlayer.hide();            },
+                this.layer.hide();
+            },
             destroy : function() {
-                this.overlayer.remove();
+                this.layer.remove();
+                erase(this, Overlay.blurOverlays)
             }
+        }
+
+        // hide blur overlays
+        function hideBlurOverlays(e){
+            $(Overlay.blurOverlays).each(function (index, item) {
+                if (!item || item.layer.is(':hidden')) {
+                    return;
+                }
+                if (item.triggerElement === e.target || item.element === e.target || $.contains(item.element, e.target)) {
+                    return;
+                }
+                item.hide();
+            })
+        }
+
+        function erase(target, array) {
+            for (var i = 0; i < array.length; i++) {
+                if (target === array[i]) {
+                    array.splice(i, 1);
+                    return array;
+                }
+            }
+        }
+
+
+        Overlay.extend = function(protoProps, staticProps) {
+            var parent = this;
+            var child;
+
+            // The constructor function for the new subclass is either defined by you
+            // (the "constructor" property in your `extend` definition), or defaulted
+            // by us to simply call the parent's constructor.
+            if (protoProps && protoProps.hasOwnProperty('constructor')) {
+                child = protoProps.constructor;
+            } else {
+              child = function(){ return parent.apply(this, arguments); };
+            }
+
+            // Add static properties to the constructor function, if supplied.
+            $.extend(child, parent, staticProps);
+
+            // Set the prototype chain to inherit from `parent`, without calling
+            // `parent`'s constructor function.
+            var Surrogate = function(){ this.constructor = child; };
+            Surrogate.prototype = parent.prototype;
+            child.prototype = new Surrogate();
+
+            // Add prototype properties (instance properties) to the subclass,
+            // if supplied.
+            if (protoProps) $.extend(child.prototype, protoProps);
+
+            // Set a convenience property in case the parent's prototype is needed
+            // later.
+            child.__super__ = parent.prototype;
+
+            return child;
         };
 
-        pub.Overlay = Overlay;
 
-    }(pub);
-
-
-    +function (pub) {
-
-        var Position = pub.Position;
-        var Overlay = pub.Overlay;
+        var Menu = Overlay.extend({
+            showMenu: function(){
+                console.log('this is a menu')
+            }
+        })
 
         /* Popup CLASS DEFINITION
          * ====================== */
@@ -378,9 +459,10 @@
             closeMode: 'destroy'
         }
 
-        pub.Popup = Popup;
 
-    }(pub);
+    var pub = {};
+    pub.Overlay = Overlay;
+    pub.Menu = Menu;
 
     return pub;
 }));

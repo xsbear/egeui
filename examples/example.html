@@ -1,0 +1,94 @@
+<!DOCTYPE html>
+<html>
+   <head>
+        <meta charset="UTF-8">
+        <title>egeui examples</title>
+        <link rel="stylesheet" href="../src/egeui.css">
+        <style>
+            .container {
+                margin-top: 20px;
+                margin-left: 300px;
+                border: 1px solid #999;
+                width: 500px;
+                height: 400px;
+            }
+            #submit {
+                margin-top: 200px;
+            }
+            .o1 {
+                background-color: #f3f3f3;
+                padding: 20px;
+                border: 1px solid #000;
+            }
+            .o2 {
+                background-color: #f3f3f3;
+                padding: 20px;
+                border: 1px solid #f00;
+            }
+        </style>
+    </head>
+    <body>
+
+        <div class="container">
+            <button id="submit">popup</button>
+            <button id="destroy">destroy</button>
+        </div>
+        <script type="text/javascript" src="jquery.min.js"></script>
+        <script type="text/javascript" src="../src/egeui.js"></script>
+        <script type="text/javascript">
+            $(function() {
+                // var loading = new mmui.Loading('正在加载', {
+                //     // opacity: 0,
+                //     // indicator: '<div class="mm-loading">正在加载</div>'
+                // })
+
+                    var oevrlayA = new egeui.Overlay({
+                        template: '<div class="o1"><p>13223</p>sdfasdfs</div>',
+                        hideBlur: true,
+                        // visible: true,
+                        align: {
+                            elem: $('#submit'),
+                            pos: 'bottom',
+                            offset: '0 50%'
+                        },
+                        trigger: $('#submit')
+                    });
+                    var oevrlayB = new egeui.Overlay({
+                        template: '<div class="o2">iw2323232323</div>',
+                        hideBlur: true,
+                        visible: true,
+                        align: ''
+                    });
+
+                $('#submit').click(function(e){
+                    oevrlayA.show()
+                    // $('<div style="width:400px;height:300px;padding:20px;">xxxxxx</div>').Popup({
+                    //     title: "网页对话框",
+                    //     modal: true,
+                    //     width: 300,
+                    //     height: 200,
+                    //     zIndex: 600,
+                    //     pin: {
+                    //         elem:  $('#submit'),
+                    //         pos: 'right',
+                    //         offset: '50% 0'
+                    //     }
+                    //     // pinElem: e.target
+                    // })
+                })
+                $('#destroy').click(function(e){
+                    oevrlayA.destroy()
+                })
+
+                var menuA = new egeui.Menu({template: '<div class="o3">menu</div>',
+                        hideBlur: true,
+                        visible: true,
+                        align: ''
+                    });
+                menuA.showMenu()
+                 console.log(menuA)
+
+            });
+        </script>
+    </body>
+</html>

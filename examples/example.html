@@ -8,7 +8,7 @@
             .container {
                 margin-top: 20px;
                 margin-left: 300px;
-                border: 1px solid #999;
+                /*border: 1px solid #999;*/
                 width: 500px;
                 height: 400px;
             }
@@ -25,6 +25,10 @@
                 padding: 20px;
                 border: 1px solid #f00;
             }
+            .dropdown-menu {
+                border: 1px solid #000;
+                display: none;
+            }
         </style>
     </head>
     <body>
@@ -32,33 +36,39 @@
         <div class="container">
             <button id="submit">popup</button>
             <button id="destroy">destroy</button>
+            <button id="dropdown">下拉框</button>
+            <ul class="dropdown-menu">
+                <li>下载</li>
+                <li>删除</li>
+            </ul>
+            <button class="dropdown-hover c1">下拉框(hover)</button>
+            <button class="dropdown-hover c2">下拉框2(hover)</button>
+            <ul id="hover_menu" class="dropdown-menu">
+                <li>下载</li>
+                <li>删除</li>
+            </ul>
         </div>
         <script type="text/javascript" src="jquery.min.js"></script>
         <script type="text/javascript" src="../src/egeui.js"></script>
         <script type="text/javascript">
             $(function() {
-                // var loading = new mmui.Loading('正在加载', {
-                //     // opacity: 0,
-                //     // indicator: '<div class="mm-loading">正在加载</div>'
-                // })
 
-                    var oevrlayA = new egeui.Overlay({
-                        template: '<div class="o1"><p>13223</p>sdfasdfs</div>',
-                        hideBlur: true,
-                        // visible: true,
-                        align: {
-                            elem: $('#submit'),
-                            pos: 'bottom',
-                            offset: '0 50%'
-                        },
-                        trigger: $('#submit')
-                    });
-                    var oevrlayB = new egeui.Overlay({
-                        template: '<div class="o2">iw2323232323</div>',
-                        hideBlur: true,
-                        visible: true,
-                        align: ''
-                    });
+                var oevrlayA = new egeui.Overlay({
+                    template: '<div class="o1"><p>13223</p>sdfasdfs</div>',
+                    // hideBlur: true,
+                    // visible: true,
+                    align: {
+                        elem: $('#submit'),
+                        pos: 'bottom',
+                        offset: '0 50%'
+                    }
+                });
+                var oevrlayB = new egeui.Overlay({
+                    template: '<div class="o2">iw2323232323</div>',
+                    hideBlur: true,
+                    visible: true,
+                    align: ''
+                });
 
                 $('#submit').click(function(e){
                     oevrlayA.show()
@@ -77,18 +87,38 @@
                     // })
                 })
                 $('#destroy').click(function(e){
-                    oevrlayB.destroy()
+                    oevrlayA.destroy()
                 })
 
-                var menuA = new egeui.Menu({
-                        // template: '<div class="o3">menu</div>',
-                        hideBlur: true,
-                        visible: true,
-                        align: ''
-                    });
-                // menuA.showMenu()
-                 // console.log(menuA)
 
+                var pop = new egeui.Popup({
+                    trigger: '#dropdown',
+                    delegateNode: '.container',
+                    triggerType: 'click',
+                    // hideBlur: false,
+                    element: '#dropdown + .dropdown-menu',
+                    aa: 'a',
+                    align: {
+                        elem: '#dropdown',
+                        pos: 'bottom'
+                    }
+                })
+                 var pop_hover = new egeui.Popup({
+                    trigger: '.dropdown-hover',
+                    delegateNode: '.container',
+                    // triggerType: 'click',
+                    // hideBlur: false,
+                    element: '#hover_menu',
+                    aa: 'b',
+                    showAlign: {
+                        pos: 'right'
+                    }
+                })
+                pop_hover.before('show', function(){
+                    console.log(this.activeTrigger)
+                })
+                // console.log(pop_hover.aa)
+                // console.log(pop.aa)
             });
         </script>
     </body>

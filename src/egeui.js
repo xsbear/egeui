@@ -99,6 +99,30 @@
 
 
         var Widget = function() {}
+        Widget.prototype = {
+            _widgetEvents: {},
+            before: function(method, fn){
+                var events = this._widgetEvents['before'] || (this._widgetEvents['before'] = {});
+                events = events[method] || (events[method] = []);
+                events.push(fn);
+            },
+            after: function(method, fn){
+                var events = this._widgetEvents['after'] || (this._widgetEvents['after'] = {});
+                events = events[method] || (events[method] = []);
+                events.push(fn);
+            },
+            destroy: function(){
+                this._widgetEvents = null;
+            },
+            trigger: function(event, method){
+                if(this._widgetEvents[event] && this._widgetEvents[event][method]){
+                    var fns = this._widgetEvents[event][method];
+                    for (var i = 0; i < fns.length; i++) {
+                        fns[i].call(this)
+                    }
+                }
+            }
+        }
         Widget.extend = function(protoProps, staticProps) {
             var parent = this;
             var child;
@@ -177,39 +201,6 @@
         };
 
 
-        /* Loading CLASS DEFINITION
-         * ====================== */
-        var Loading = function(text,options) {
-            this.text = text;
-            var defaults = {
-                zIndex: 1000,
-                opacity: 0.4,
-                indicator: null,
-            }
-            this.options = $.extend(defaults, options);
-            this.init();
-        };
-
-        Loading.prototype = {
-            constructor : Loading,
-            overlay : null,
-            indicator : null,
-
-            init: function(){
-                this.overlay = new Overlay({zIndex:  this.options.zIndex, opacity: this.options.opacity});
-                this.indicator = this.options.indicator || '<div class="mm-loading"><p>'+ this.text +'</p></div>';
-                this.indicator = $(this.indicator).appendTo('body').css('z-index', this.options.zIndex + 1);
-                if(this.options.indicator === null){
-                    Position.center(this.indicator);
-                }
-            },
-
-            hide: function(){
-                this.overlay.destroy();
-                this.indicator.remove();
-            }
-        };
-
         /* Overlay CLASS DEFINITION
          * ====================== */
         var Overlay = Widget.extend({
@@ -222,7 +213,6 @@
                     left: 0,
                     zIndex: 99,
                     visible: false,
-                    hideBlur: false,
                     align: ''
                 }
                 this.options = $.extend(defaults, options);
@@ -230,6 +220,7 @@
                     this.init()
                 }
             },
+            visible: false,
             init: function() {
                 var options = this.options;
                 var parentNode = $$(options.parentNode);
@@ -250,36 +241,48 @@
                     this.$element.appendTo(parentNode);
                 }
 
-                if(options.align){
-                    var align = options.align;
-                    if(align.elem && align.pos){
-                        Position.pin(this.$element, align)
-                    } else {
-                        Position.center(this.$element, align)
-                    }
-                } else {
-                    Position.center(this.$element)
-                }
+                this.align(options.align)
 
-                options.visible && this.$element.show();
+                options.visible && this.show();
 
                 if(options.hideBlur){
                     Overlay.blurOverlays.push(this);
                     this._relativeElements.push(this.element)
                 }
             },
+            align: function(pos){
+                if(pos){
+                    if(pos.elem && pos.pos){
+                        Position.pin(this.$element, pos)
+                    } else {
+                        Position.center(this.$element, pos)
+                    }
+                } else {
+                    Position.center(this.$element)
+                }
+            },
             show : function() {
                 if(!this.$element){
                     this.init()
                 }
+                this.trigger('before', 'show')
                 this.$element.show();
+                this.trigger('after', 'show')
+                this.visible = true;
             },
             hide : function() {
+                this.trigger('before', 'hide')
                 this.$element.hide();
+                this.trigger('after', 'hide')
+                this.visible = false;
             },
             destroy : function() {
+                this.trigger('before', 'destroy')
+                this.$element.off()
                 this.$element.remove();
                 erase(this, Overlay.blurOverlays)
+                this.trigger('after', 'destroy')
+                Overlay.superClass.destroy.call(this);
             },
             _relativeElements: []
         });
@@ -293,14 +296,14 @@
         // hide blur overlays
         function hideBlurOverlays(e){
             $(Overlay.blurOverlays).each(function (index, item) {
-                if (!item || item.$element.is(':hidden')) {
+                if (!item || !item.visible) {
                     return;
                 }
                 for (var i = 0; i < item._relativeElements.length; i++) {
                     var el = item._relativeElements[i];
-                };
-                if (el === e.target || $.contains(el, e.target)) {
-                    return;
+                    if (el === e.target || $.contains(el, e.target)) {
+                        return;
+                    }
                 }
                 item.hide();
             })
@@ -322,23 +325,93 @@
             constructor: function(){
                 Popup.superClass.constructor.apply(this, arguments);
 
-                this.options.triggerType = this.options.triggerType || 'hover';
+                var defaults = {
+                    'triggerType': 'hover',
+                    'hideBlur': true,
+                    'delay': 100
+                }
+                this.options = $.extend(defaults, this.options);
                 this._bindTrigger();
             },
             _bindTrigger: function(){
                 var triggerType = this.options.triggerType;
+
                 if(triggerType === 'click'){
                     this._bindClick();
                 } else {
+                    this.init();
                     this._bindHover();
+                }
+                if(this.options.showAlign){
+                    this.before('show', function(){
+                        this.options.showAlign.elem = this.activeTrigger;
+                        this.align(this.options.showAlign)
+                    })
+                }
+            },
+
+            _bindHover: function(){
+                var delay = this.options.delay,
+                    delegateNode = this.options.delegateNode,
+                    trigger = this.options.trigger;
+
+                var showTimer, hideTimer;
+                var that = this;
+
+                bindEvent('mouseenter', trigger, function(){
+                    clearTimeout(hideTimer);
+                    hideTimer = null;
+
+                    that.activeTrigger = this;
+
+                    showTimer = setTimeout(function(){
+                        that.show()
+                    }, delay)
+                }, delegateNode, this);
+
+                bindEvent('mouseleave', trigger, leaveHandler, delegateNode, this);
+
+                // 鼠标在悬浮层上时不消失
+                this.$element.on("mouseenter", function () {
+                    clearTimeout(hideTimer);
+                });
+                this.$element.on("mouseleave", leaveHandler);
+
+                this.$element.on('mouseleave', 'select', function (e) {
+                    e.stopPropagation();
+                });
+
+                function leaveHandler(e) {
+                    clearTimeout(showTimer);
+                    showTimer = null;
+
+                    if (that.visible) {
+                        hideTimer = setTimeout(function () {
+                            that.hide();
+                        }, delay);
+                    }
                 }
             },
 
             _bindClick: function(){
+                var that = this;
+                bindEvent('click', this.options.trigger, function(){
+                    that.show()
+                }, this.options.delegateNode, this);
 
+                if(this.options.hideBlur){
+                    this._relativeElements.push($$(this.options.trigger)[0], this)
+                }
             }
         })
 
+        function bindEvent(type, element, fn, delegateNode, context){
+            if(delegateNode){
+                $$(delegateNode).on(type, element, fn);
+            } else {
+                $$(element).on(type, fn);
+            }
+        }
 
 
 
@@ -354,6 +427,7 @@
 
     var pub = {};
     pub.Overlay = Overlay;
+    pub.Popup = Popup;
     pub.Menu = Menu;
 
     return pub;

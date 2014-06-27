@@ -3,8 +3,10 @@
    <head>
         <meta charset="UTF-8">
         <title>egeui examples</title>
-        <link rel="stylesheet" href="../src/egeui.css">
         <style>
+            ul {
+                margin: 0;
+            }
             .container {
                 margin-top: 20px;
                 margin-left: 300px;
@@ -29,6 +31,10 @@
                 border: 1px solid #000;
                 display: none;
             }
+            .context-menu {
+                border: 1px solid #000;
+                display: none;
+            }
         </style>
     </head>
     <body>
@@ -36,58 +42,79 @@
         <div class="container">
             <button id="submit">popup</button>
             <button id="destroy">destroy</button>
+            <button id="setPosition">setPosition</button>
             <button id="dropdown">下拉框</button>
             <ul class="dropdown-menu">
                 <li>下载</li>
                 <li>删除</li>
             </ul>
+            <button class="dropdown-click">下拉框(click)</button>
+            <button class="dropdown-click">下拉框2(click)</button>
+            <ul id="menu_click" class="dropdown-menu">
+                <li>下载</li>
+                <li>删除</li>
+            </ul>
+            <br>
             <button class="dropdown-hover c1">下拉框(hover)</button>
             <button class="dropdown-hover c2">下拉框2(hover)</button>
             <ul id="hover_menu" class="dropdown-menu">
                 <li>下载</li>
                 <li>删除</li>
             </ul>
+            <input type="text" id="pop_focus">
+            <button id="pop_focus2">focus</button>
+            <ul class="focus-menu dropdown-menu">
+                <li>下载</li>
+                <li>删除</li>
+            </ul>
         </div>
+        <button id="position_test" style="margin-left: 300px;">Position test</button>
+        <ul id="context_menu" class="context-menu">
+            <li><a href="#">预览</a></li>
+            <li class="separator"><a href="#">下载</a></li>
+            <li><a href="#">更新版本</a></li>
+            <li><a href="#">共享</a></li>
+            <li><a href="#">审阅</a></li>
+            <li class="separator"><a href="#">添加常用</a></li>
+            <li><a href="#">移动/复制</a></li>
+            <li><a href="#">删除</a></li>
+            <li><a href="#">重命名</a></li>
+            <li><a href="#">属性</a></li>
+        </ul>
+        <p style="margin-top:400px;">test</p>
         <script type="text/javascript" src="jquery.min.js"></script>
         <script type="text/javascript" src="../src/egeui.js"></script>
         <script type="text/javascript">
             $(function() {
 
-                var oevrlayA = new egeui.Overlay({
-                    template: '<div class="o1"><p>13223</p>sdfasdfs</div>',
-                    // hideBlur: true,
-                    // visible: true,
-                    align: {
-                        elem: $('#submit'),
-                        pos: 'bottom',
-                        offset: '0 50%'
-                    }
-                });
                 var oevrlayB = new egeui.Overlay({
                     template: '<div class="o2">iw2323232323</div>',
                     hideBlur: true,
                     visible: true,
-                    align: ''
+                    align: {
+                        pos: 'center'
+                    }
                 });
-
+                var oevrlayA;
                 $('#submit').click(function(e){
-                    oevrlayA.show()
-                    // $('<div style="width:400px;height:300px;padding:20px;">xxxxxx</div>').Popup({
-                    //     title: "网页对话框",
-                    //     modal: true,
-                    //     width: 300,
-                    //     height: 200,
-                    //     zIndex: 600,
-                    //     pin: {
-                    //         elem:  $('#submit'),
-                    //         pos: 'right',
-                    //         offset: '50% 0'
-                    //     }
-                    //     // pinElem: e.target
-                    // })
+                    oevrlayA = new egeui.Overlay({
+                        template: '<div class="o1"><p>13223</p>sdfasdfs</div>',
+                        hideBlur : true,
+                        // align: {
+                        //     elem: $('#submit'),
+                        //     pos: 'bottom',
+                        //     offset: '0 50%'
+                        // }
+                    });
+
+                    console.log(oevrlayA)
                 })
                 $('#destroy').click(function(e){
                     oevrlayA.destroy()
+                })
+                $('#setPosition').click(function(){
+                    oevrlayA.setPosition(100, 100)
+                    oevrlayA.show()
                 })
 
 
@@ -97,28 +124,55 @@
                     triggerType: 'click',
                     // hideBlur: false,
                     element: '#dropdown + .dropdown-menu',
-                    aa: 'a',
                     align: {
                         elem: '#dropdown',
                         pos: 'bottom'
                     }
                 })
-                 var pop_hover = new egeui.Popup({
+                // console.log(pop)
+                var pop_hover = new egeui.Popup({
                     trigger: '.dropdown-hover',
                     delegateNode: '.container',
-                    // triggerType: 'click',
-                    // hideBlur: false,
                     element: '#hover_menu',
-                    aa: 'b',
                     showAlign: {
-                        pos: 'right'
+                        pos: 'bottom'
                     }
                 })
-                pop_hover.before('show', function(){
-                    console.log(this.activeTrigger)
+                var pop_click = new egeui.Popup({
+                    trigger: '.dropdown-click',
+                    triggerType: 'click',
+                    delegateNode: '.container',
+                    // hideBlur: false,
+                    element: '#menu_click',
+                    showAlign: {
+                        pos: 'bottom'
+                    }
                 })
-                // console.log(pop_hover.aa)
-                // console.log(pop.aa)
+                // console.log(pop_click)
+                var pop_focus = new egeui.Popup({
+                    trigger: '#pop_focus',
+                    triggerType: 'focus',
+                    delegateNode: '.container',
+                    element: '.focus-menu',
+                    align: {
+                        elem: '#pop_focus',
+                        pos: 'bottom'
+                    }
+                })
+                // pop_hover.before('show', function(){
+                //     console.log(this.activeTrigger)
+                // })
+                var cm = new egeui.Popup({
+                    trigger: '#position_test',
+                    element: '#context_menu',
+                    // visible: true,
+                    hideBlur: true,
+                    align: {
+                        elem: $('#position_test'),
+                        pos: 'bottom right',
+                        // offset: '0 50%'
+                    }
+                });
             });
         </script>
     </body>

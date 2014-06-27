@@ -13,11 +13,14 @@ module.exports = function(grunt) {
       },
       cmd: {
         options: {
-          idleading: 'lib/<%= pkg.name %>/<%= pkg.version %>/'
+          idleading: 'lib/<%= pkg.name %>/<%= pkg.version %>/',
+          alias: {
+            'jquery': 'jquery'
+          }
         },
         files: [{
           cwd: 'src',
-          src: 'mmui.js',
+          src: 'egeui.js',
           dest: '.build'
         }]
       }
@@ -28,7 +31,7 @@ module.exports = function(grunt) {
       },
       mmui: {
         files: {
-          'dist/<%= pkg.version %>/mmui.js': ['.build/mmui.js']
+          'dist/<%= pkg.version %>/egeui.js': ['.build/egeui.js']
         }
       }
     },
@@ -38,19 +41,15 @@ module.exports = function(grunt) {
           banner: '<%= banner %>'
         },
         files: {
-          'dist/<%= pkg.version %>/mmui.css': ['src/mmui.css']
+          'dist/<%= pkg.version %>/egeui.css': ['src/egeui.css']
         }
       }
     },
     copy: {
       debug: {
-        src: 'src/mmui.js',
-        dest: 'dist/<%= pkg.version %>/mmui-debug.js',
+        src: 'src/egeui.js',
+        dest: 'dist/<%= pkg.version %>/egeui-debug.js',
       },
-      img: {
-        src: 'src/loading-bars.gif',
-        dest: 'dist/<%= pkg.version %>/loading-bars.gif',
-      }
     },
     clean: {
       build: ['.build']
@@ -76,5 +75,5 @@ module.exports = function(grunt) {
   grunt.loadNpmTasks('grunt-contrib-clean');
   grunt.loadNpmTasks('grunt-contrib-connect');
   // Default task.
-  grunt.registerTask('default', ['transport', 'uglify', 'cssmin', 'copy', 'clean']);
+  grunt.registerTask('default', ['transport', 'uglify', 'copy', 'clean']);
 };

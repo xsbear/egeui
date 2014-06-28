@@ -21,63 +21,115 @@
     var Position = {};
 
     Position.pin = function(pinElem, baseObject) {
-        var baseElem = $$(baseObject.elem);
-        var basePos = baseElem.offset();
         pinElem = $$(pinElem);
+        var collision = baseObject.collision || 'flip';
         var posTop, posLeft;
 
-        var pinPos = baseObject.pos;
+        var baseHeight, baseWidth;
+        var pinHeight = pinElem.outerHeight(),
+            pinWidth = pinElem.outerWidth();
 
-        if(pinPos.indexOf('top') > -1){
-            posTop = basePos.top - pinElem.outerHeight();
-        }
-        if(pinPos.indexOf('bottom') > -1){
-            posTop = basePos.top + baseElem.outerHeight();
-        }
-        if(pinPos === 'bottom' || pinPos === 'top'){
-            posLeft = basePos.left;
-        }
-        if(pinPos.indexOf('right') > -1){
-            posLeft = basePos.left + baseElem.outerWidth();
-        }
-        if(pinPos.indexOf('left') > -1){
-            posLeft = basePos.left - pinElem.outerWidth();
-        }
-        if(pinPos === 'right' || pinPos === 'left'){
-            posTop = basePos.top;
-        }
+        if(baseObject.top && baseObject.left){
+            posTop = baseObject.top;
+            posLeft = baseObject.left;
+            baseHeight = baseWidth = 0;
+        } else {
+            var baseElem = $$(baseObject.elem);
+            var basePos = baseElem.offset();
+            var pinPos = baseObject.pos;
 
-        if(posTop < 0){
-            posTop = basePos.top + baseElem.outerHeight();
-        }
-        if(posLeft < 0){
-            posLeft = basePos.left + baseElem.outerWidth();
-        }
+            baseHeight = baseElem.outerHeight();
+            baseWidth = baseElem.outerWidth();
 
-        if(baseObject.offset){
-            var offset = baseObject.offset.split(' ');
-            if(offset[0].indexOf('%') > -1){
-                posTop -= parseInt(offset[0].slice(0, -1), 10) / 100 * pinElem.outerHeight() - baseElem.outerHeight() / 2
-            } else {
-                posTop += parseInt(offset[0], 10);
+            if(pinPos.indexOf('top') > -1){
+                posTop = basePos.top - pinHeight;
             }
-            posTop = posTop < 0 ? 0: posTop;
-            if(offset.length > 1){
-                if(offset[1].indexOf('%') > -1){
-                    posLeft -= parseInt(offset[1].slice(0, -1), 10) / 100 * pinElem.outerWidth() - baseElem.outerWidth() / 2
+            if(pinPos.indexOf('bottom') > -1){
+                posTop = basePos.top + baseHeight;
+            }
+            if(pinPos === 'bottom' || pinPos === 'top'){
+                posLeft = basePos.left;
+            }
+            if(pinPos.indexOf('right') > -1){
+                posLeft = basePos.left + baseWidth;
+            }
+            if(pinPos.indexOf('left') > -1){
+                posLeft = basePos.left - pinWidth;
+            }
+            if(pinPos === 'right' || pinPos === 'left'){
+                posTop = basePos.top;
+            }
+
+            if(posTop < 0){
+                posTop = basePos.top + baseHeight;
+            }
+            if(posLeft < 0){
+                posLeft = basePos.left + baseWidth;
+            }
+
+            if(baseObject.offset){
+                var offset = baseObject.offset.split(' ');
+                if(offset[0].indexOf('%') > -1){
+                    posTop -= parseInt(offset[0].slice(0, -1), 10) / 100 * pinHeight - baseHeight / 2;
                 } else {
-                    posLeft += parseInt(offset[1], 10);
+                    posTop += parseInt(offset[0], 10);
                 }
-                posLeft = posLeft < 0 ? 0: posLeft;
+                posTop = posTop < 0 ? 0: posTop;
+                if(offset.length > 1){
+                    if(offset[1].indexOf('%') > -1){
+                        posLeft -= parseInt(offset[1].slice(0, -1), 10) / 100 * pinWidth - baseWidth / 2;
+                    } else {
+                        posLeft += parseInt(offset[1], 10);
+                    }
+                    posLeft = posLeft < 0 ? 0: posLeft;
+                }
             }
         }
 
-        // TODO ref jqueryui Position collision with flip or fit
-        if(posTop + pinElem.outerHeight() - $(document).scrollTop() > $(window).height()){
-            posTop = $(window).height() + $(document).scrollTop() - pinElem.outerHeight()
+        // collision handle
+        var docST = $(document).scrollTop(), docSL = $(document).scrollLeft(),
+            docH = $(document).height(), docW = $(document).width(),
+            winH = $(window).height(), winW = $(window).width();
+
+        if(posTop < docST){
+            if(collision === 'fit'){
+                posTop = docST;
+            } else if(collision === 'flip'){
+                posTop = posTop + pinHeight + baseHeight;
+                if(posTop + pinHeight > docH){
+                    posTop = docH - pinHeight;
+                }
+            }
+        } else if(posTop + pinHeight - docST > winH){
+            if(collision === 'fit'){
+                posTop = winH + docST - pinHeight;
+            } else if(collision === 'flip'){
+                // +1: fix firefox bug
+                posTop = posTop - pinHeight - baseHeight + 1;
+                if(posTop < 0){
+                    posTop = 0;
+                }
+            }
         }
-        if(posLeft + pinElem.outerWidth() - $(document).scrollLeft() > $(window).width()){
-            posLeft = $(window).width() + $(document).scrollLeft() - pinElem.outerWidth();
+
+        if(posLeft < docSL){
+            if(collision === 'fit'){
+                posLeft = docSL;
+            } else if(collision === 'flip'){
+                posLeft = posLeft + pinWidth + baseWidth;
+                if(posLeft + pinWidth > docW){
+                    posLeft = docW - pinWidth;
+                }
+            }
+        } else if(posLeft + pinWidth - docSL > winW){
+            if(collision === 'fit'){
+                posLeft = winW + docSL - pinWidth;
+            } else if(collision === 'flip'){
+                posLeft = posLeft - pinWidth - baseWidth;
+                if(posLeft < 0){
+                    posLeft = 0;
+                }
+            }
         }
 
         pinElem.css({
@@ -263,17 +315,11 @@
             }
             return this;
         },
-        setPosition: function(x, y){
+        setPosition: function(pos){
             if(!this.$element){
-                this.options.left = x;
-                this.options.top = y;
                 this.init()
-            } else {
-                this.$element.css({
-                    'left': x,
-                    'top': y
-                })
             }
+            Position.pin(this.$element, pos)
             return this;
         },
         show : function() {

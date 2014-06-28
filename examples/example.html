@@ -46,6 +46,10 @@
             <button id="dropdown">下拉框</button>
             <ul class="dropdown-menu">
                 <li>下载</li>
+                <li>下载</li>
+                <li>下载</li>
+                <li>下载</li>
+                <li>下载</li>
                 <li>删除</li>
             </ul>
             <button class="dropdown-click">下拉框(click)</button>
@@ -59,6 +63,9 @@
             <button class="dropdown-hover c2">下拉框2(hover)</button>
             <ul id="hover_menu" class="dropdown-menu">
                 <li>下载</li>
+                <li>删除</li>
+                <li>删除</li>
+                <li>删除</li>
                 <li>删除</li>
             </ul>
             <input type="text" id="pop_focus">
@@ -113,7 +120,9 @@
                     oevrlayA.destroy()
                 })
                 $('#setPosition').click(function(){
-                    oevrlayA.setPosition(100, 100)
+                    oevrlayA.setPosition({
+                        top: 100, left: 100, collision: 'flip'
+                    })
                     oevrlayA.show()
                 })
 
@@ -124,9 +133,10 @@
                     triggerType: 'click',
                     // hideBlur: false,
                     element: '#dropdown + .dropdown-menu',
-                    align: {
-                        elem: '#dropdown',
-                        pos: 'bottom'
+                    showAlign: {
+                        // elem: '#dropdown',
+                        pos: 'bottom',
+                        collision: 'flip'
                     }
                 })
                 // console.log(pop)
@@ -135,7 +145,8 @@
                     delegateNode: '.container',
                     element: '#hover_menu',
                     showAlign: {
-                        pos: 'bottom'
+                        pos: 'top',
+                        collision: 'flip'
                     }
                 })
                 var pop_click = new egeui.Popup({
@@ -167,9 +178,10 @@
                     element: '#context_menu',
                     // visible: true,
                     hideBlur: true,
-                    align: {
-                        elem: $('#position_test'),
-                        pos: 'bottom right',
+                    showAlign: {
+                        // elem: $('#position_test'),
+                        pos: 'left',
+                        collision: 'flip'
                         // offset: '0 50%'
                     }
                 });

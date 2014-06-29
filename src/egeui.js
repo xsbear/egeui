@@ -16,7 +16,7 @@
         return obj instanceof $ ? obj : $(obj)
     };
 
-    /* Position CLASS DEFINITION
+    /* Position UTILITY DEFINITION
      * ====================== */
     var Position = {};
 
@@ -151,10 +151,76 @@
         });
     };
 
+    var EVENT_KEY_SPLITTER = /^(\S+)\s*(.*)$/;
+    var cidCounter = 0;
+    var cachedInstances = {};
+    function uniqueCid() {
+        return 'widget-' + cidCounter++
+    }
+
+    // For memory leak
+    $(window).unload(function() {
+        for(var cid in cachedInstances) {
+            cachedInstances[cid].destroy()
+        }
+    })
+
     /* Widget CLASS DEFINITION
     * ====================== */
-    var Widget = function() {}
+    var Widget = function(options) {
+        this.options = options;
+        this.setup();
+    }
     Widget.prototype = {
+        rendered: false,
+        setup: function(){
+            this.cid = uniqueCid();
+            cachedInstances[this.cid] = this;
+        },
+        render: function(){
+            if (!this.rendered) {
+                this.rendered = true;
+            }
+            this.trigger('before', 'render')
+            var parentNode = $$(this.options.parentNode);
+            if(!$.contains(document.documentElement, this.element)){
+                this.$element.appendTo(parentNode);
+            }
+            this.trigger('after', 'render');
+
+            this._delegateEvents();
+
+
+            return this;
+        },
+        _delegateEvents: function(){
+            var events = this.events;
+            if(this.events){
+                for(var key in this.events){
+                    if(this.events.hasOwnProperty(key)){
+                        var match = key.match(EVENT_KEY_SPLITTER);
+                        var  eventType = match[1];
+                        var selector = match[2] || undefined;
+
+                        (function(handler, widget) {
+                            var callback = function(ev) {
+                                if ($.isFunction(handler)) {
+                                    handler.call(widget, ev)
+                                } else {
+                                    widget[handler](ev)
+                                }
+                            }
+                            // delegate
+                            if (selector) {
+                                widget.$element.on(eventType, selector, callback)
+                            } else {
+                                widget.$element.on(eventType, callback)
+                            }
+                        })(events[key], this)
+                    }
+                }
+            }
+        },
         _getEvents: function(event, method){
             this._widgetEvents = this._widgetEvents || {};
             var events = this._widgetEvents[event] || (this._widgetEvents[event] = {});
@@ -163,13 +229,25 @@
         before: function(method, fn){
             var events = this._getEvents('before', method);
             events.push(fn);
+            return this;
         },
         after: function(method, fn){
             var events = this._getEvents('after', method);
             events.push(fn);
+            return this;
         },
         destroy: function(){
+            this.trigger('before', 'destroy')
+            this.$element.off();
+            delete cachedInstances[this.cid];
+
+            if(this._isTemplate){
+                this.$element.remove();
+            }
+
+            this.trigger('after', 'destroy');
             this._widgetEvents = null;
+            this.$element = null;
         },
         trigger: function(event, method){
             if(this._widgetEvents && this._widgetEvents[event] && this._widgetEvents[event][method]){
@@ -180,6 +258,7 @@
             }
         }
     }
+
     Widget.extend = function(protoProps, staticProps) {
         var parent = this;
         var child;
@@ -190,7 +269,7 @@
         if (protoProps && protoProps.hasOwnProperty('constructor')) {
             child = protoProps.constructor;
         } else {
-          child = function(){ return parent.apply(this, arguments); };
+            child = function(){ return parent.apply(this, arguments); };
         }
 
         // Add static properties to the constructor function, if supplied.
@@ -213,50 +292,12 @@
         return child;
     };
 
-
-    var isIE6 = !window.XMLHttpRequest
-
-    /* Mask CLASS DEFINITION
-     * ====================== */
-    var Mask = function(options) {
-        var defaults = {
-            zIndex: 499,
-            opacity: 0.4,
-            bgColor: '#fff'
-        }
-        this.options = $.extend(defaults, options);
-        this. init();
-    }
-
-    Mask.prototype = {
-        masklayer : null,
-        init: function() {
-            this.masklayer = $('<div class="egeui-mask"></div>').appendTo('body').css({
-                'top': 0,
-                'left': 0,
-                'height': '100%',
-                'width': '100%',
-                'background-color': this.options.bgColor,
-                'z-index': this.options.zIndex,
-                'opacity': this.options.opacity
-            });
-        },
-        show : function() {
-            this.masklayer.show();
-        },
-        hide : function() {
-            this.masklayer.hide();
-        },
-        destroy : function() {
-            this.masklayer.remove();
-        }
-    };
-
-
-    /* Overlay CLASS DEFINITION
+    /* Overlay WIDGET DEFINITION
      * ====================== */
     var Overlay = Widget.extend({
-        constructor: function(options) {
+        setup: function(){
+            Overlay.superClass.setup.call(this);
+
             var defaults = {
                 // element, template, width, height, id , className, trigger
                 parentNode: document.body,
@@ -264,20 +305,15 @@
                 top: 0,
                 left: 0,
                 zIndex: 99,
-                visible: false,
-                align: ''
+                visible: false
             }
-            this.options = $.extend(defaults, options);
+            var options = this.options = $.extend(defaults, this.options);
 
-            if(this.options.visible){
-                this.init()
+            this._isTemplate = !!options.template;
+            this.$element = $$(this.$element || options.element || options.template);
+            if(!this.$element){
+                throw new Error('element or template not specified');
             }
-        },
-        visible: false,
-        init: function() {
-            var options = this.options;
-            var parentNode = $$(options.parentNode);
-            this.$element = $$(options.element || options.template);
             this.element = this.$element[0];
             options.id && this.$element.attr('id', options.id);
             options.className && this.$element.addClass(options.className)
@@ -290,41 +326,33 @@
             });
             options.width && this.$element.css('width', options.width);
             options.height && this.$element.css('height', options.height);
-            if(!$.contains(document.documentElement, this.element)){
-                this.$element.appendTo(parentNode);
-            }
 
-            options.align && this.align(options.align);
-
-            if(options.hideBlur){
-                this._hideBlur($$(options.trigger))
-            }
+            this.after('render', this.align);
+            options.hideBlur && this._hideBlur($$(options.trigger))
             options.visible && this.show();
         },
-        _hideBlur: function(arr){
-            arr = $.makeArray(arr);
-            arr.push(this.element);
-            this._relativeElements = arr;
-            Overlay.blurOverlays.push(this);
-        },
-        align: function(posInfo){
-            if(posInfo.pos === 'center'){
-                Position.center(this.$element, posInfo.elem)
-            } else {
-                Position.pin(this.$element, posInfo)
+        visible: false,
+        align: function(posOption){
+            posOption = posOption || this.options.align;
+            if(posOption){
+                if(posOption.pos === 'center'){
+                    Position.center(this.$element, posOption.elem)
+                } else {
+                    Position.pin(this.$element, posOption)
+                }
             }
             return this;
         },
         setPosition: function(pos){
-            if(!this.$element){
-                this.init()
+            if(!this.rendered){
+                this.render();
             }
-            Position.pin(this.$element, pos)
+            Position.pin(this.$element, pos);
             return this;
         },
         show : function() {
-            if(!this.$element){
-                this.init()
+            if(!this.rendered){
+                this.render();
             }
             this.trigger('before', 'show')
             this.$element.show();
@@ -340,13 +368,17 @@
             return this;
         },
         destroy : function() {
-            this.trigger('before', 'destroy')
-            this.$element.off()
-            this.$element.remove();
-            erase(this, Overlay.blurOverlays)
-            this.trigger('after', 'destroy')
             Overlay.superClass.destroy.call(this);
-        }
+            erase(this, Overlay.blurOverlays);
+        },
+        _hideBlur: function(arr, relativeOnly){
+            arr = $.makeArray(arr);
+            arr.push(this.element);
+            this._relativeElements = arr;
+            if(!relativeOnly){
+                Overlay.blurOverlays.push(this);
+            }
+        },
     });
 
     // 绑定 blur 隐藏事件
@@ -381,19 +413,28 @@
     }
 
 
-    /* Popup CLASS DEFINITION
+    /* Popup WIDGET DEFINITION
      * ====================== */
     var Popup = Overlay.extend({
-        constructor: function(){
-            Popup.superClass.constructor.apply(this, arguments);
-
+        setup: function(){
             var defaults = {
                 'triggerType': 'hover',
                 'hideBlur': true,
                 'delay': 200
             }
-            this.options = $.extend(defaults, this.options);
+            var options = this.options = $.extend(defaults, this.options);
+
+            Popup.superClass.setup.call(this);
+
             this._bindTrigger();
+
+            // 当使用委托事件时，_hideBlur 方法对于新添加的节点会失效 需要重新绑定
+            if (options.delegateNode && options.hideBlur) {
+                var that = this;
+                this.before('show', function () {
+                    this._hideBlur($$(options.trigger, true))
+                });
+            }
         },
 
         _bindTrigger: function(){
@@ -410,7 +451,7 @@
                 }, this.options.delegateNode, this);
 
             } else if(triggerType === 'focus'){
-                this.init();
+                this.render();
 
                 bindEvent('focus', trigger, function () {
                     that.activeTrigger = this;
@@ -431,7 +472,7 @@
 
             } else {
                 this.options.hideBlur = false;
-                this.init();
+                this.render();
 
                 var showTimer, hideTimer;
 
@@ -479,7 +520,7 @@
         }
     })
 
-    function bindEvent(type, element, fn, delegateNode, context){
+    function bindEvent(type, element, fn, delegateNode){
         if(delegateNode){
             $$(delegateNode).on(type, element, fn);
         } else {
@@ -487,9 +528,93 @@
         }
     }
 
+
+    /* Mask WIDGET DEFINITION
+     * ====================== */
+    var Mask = Overlay.extend({
+        setup: function(){
+            var defaults = {
+                width: '100%',
+                height: '100%',
+                position: 'fixed',
+                zIndex: 499,
+                opacity: 0.3,
+                backgroundColor: '#000',
+                template: '<div class="egeui-mask"></div>'
+            }
+            var options = this.options = $.extend(defaults, this.options);
+
+            Popup.superClass.setup.call(this);
+
+            this.$element.css({
+                'background-color': options.backgroundColor,
+                'opacity': options.opacity,
+            })
+        }
+    })
+
+
+    /* Dialog WIDGET DEFINITION
+     * ====================== */
+    var Dialog = Overlay.extend({
+        _dialogTpl: '<div class="{{classPrefix}}"></div>',
+        _closeTpl: '<div class="{{classPrefix}}-close" data-role="close"></div>',
+        _titleTpl: '<div class="{{classPrefix}}-title" data-role="title"></div>',
+        _contentTpl: '<div class="{{classPrefix}}-content" data-role="content"></div>',
+
+        setup: function(){
+            var defaults = {
+                align: {pos: 'center'},
+                classPrefix: 'egeui-dialog',
+                closeTpl: 'x',
+                zIndex: 999
+                // visible: true
+            };
+            var options = this.options = $.extend(defaults, this.options);
+
+            this.$element = $(this._parseTpl(this._dialogTpl));
+            if(options.closeTpl){
+                $(this._parseTpl(this._closeTpl)).appendTo(this.$element).append(options.closeTpl);
+            }
+            if(options.content){
+                this.$contentElement = $(this._parseTpl(this._contentTpl)).append(options.content);
+                this.$element.append(this.$contentElement)
+            } else {
+                throw new Error('content not specified');
+            }
+
+            if(options.mask){
+                this.mask = new Mask( options.mask === true ? {} : options.mask)
+
+                this.before('show', function(){
+                    this.mask.show();
+                }).after('hide', function(){
+                    this.mask.hide();
+                }).after('destroy', function(){
+                    this.mask.destroy();
+                })
+            }
+
+            Popup.superClass.setup.call(this);
+
+            this._isTemplate = true;
+        },
+        events: {
+            'click [data-role=close]': function(e){
+                e.preventDefault();
+                this.hide();
+            }
+        },
+        _parseTpl: function(tpl){
+            return tpl.replace(/\{\{classPrefix\}\}/g, this.options.classPrefix);
+        }
+    })
+
+
     var pub = {};
     pub.Overlay = Overlay;
     pub.Popup = Popup;
+    pub.Dialog = Dialog;
 
     return pub;
 }));

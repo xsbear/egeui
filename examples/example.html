@@ -75,6 +75,7 @@
                 <li>删除</li>
             </ul>
         </div>
+        <button id="destroy_dialog">destroy_dialog</button>
         <button id="position_test" style="margin-left: 300px;">Position test</button>
         <ul id="context_menu" class="context-menu">
             <li><a href="#">预览</a></li>
@@ -106,7 +107,7 @@
                 $('#submit').click(function(e){
                     oevrlayA = new egeui.Overlay({
                         template: '<div class="o1"><p>13223</p>sdfasdfs</div>',
-                        hideBlur : true,
+                        // hideBlur : true,
                         // align: {
                         //     elem: $('#submit'),
                         //     pos: 'bottom',
@@ -117,7 +118,7 @@
                     console.log(oevrlayA)
                 })
                 $('#destroy').click(function(e){
-                    oevrlayA.destroy()
+                     oevrlayA.destroy();
                 })
                 $('#setPosition').click(function(){
                     oevrlayA.setPosition({
@@ -185,6 +186,17 @@
                         // offset: '0 50%'
                     }
                 });
+
+                var dialog = new egeui.Dialog({
+                    content: 'xxxxx',
+                    mask: true,
+                    // closeTpl: ''
+                }).show();
+                console.log(dialog)
+                $('#destroy_dialog').click(function(e){
+                    dialog.destroy()
+                })
+
             });
         </script>
     </body>

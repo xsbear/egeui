@@ -160,9 +160,11 @@
 
     // For memory leak
     $(window).unload(function() {
-        for(var cid in cachedInstances) {
-            cachedInstances[cid].destroy()
-        }
+        try {
+            for(var cid in cachedInstances) {
+                cachedInstances[cid].destroy()
+            }
+        } catch(e){}
     })
 
     /* Widget CLASS DEFINITION

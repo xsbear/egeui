@@ -188,8 +188,15 @@
                 });
 
                 var dialog = new egeui.Dialog({
-                    content: 'xxxxx',
+                    content: '<div><button class="confirm">confirm</button></div>',
                     mask: true,
+                    title: 'title1123',
+                    events: {
+                        'click .confirm': function(e){
+                            console.log(e.target)
+                            console.log(this)
+                        }
+                    }
                     // closeTpl: ''
                 }).show();
                 console.log(dialog)

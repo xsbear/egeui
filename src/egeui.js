@@ -190,11 +190,10 @@
 
             this._delegateEvents();
 
-
             return this;
         },
         _delegateEvents: function(){
-            var events = this.events;
+            var events = this.events = $.extend(this.events, this.options.events);
             if(this.events){
                 for(var key in this.events){
                     if(this.events.hasOwnProperty(key)){
@@ -311,7 +310,7 @@
 
             this._isTemplate = !!options.template;
             this.$element = $$(this.$element || options.element || options.template);
-            if(!this.$element){
+            if(!this.$element[0]){
                 throw new Error('element or template not specified');
             }
             this.element = this.$element[0];
@@ -567,6 +566,7 @@
                 align: {pos: 'center'},
                 classPrefix: 'egeui-dialog',
                 closeTpl: 'x',
+                title: '',
                 zIndex: 999
                 // visible: true
             };
@@ -575,6 +575,9 @@
             this.$element = $(this._parseTpl(this._dialogTpl));
             if(options.closeTpl){
                 $(this._parseTpl(this._closeTpl)).appendTo(this.$element).append(options.closeTpl);
+            }
+            if(options.title){
+                $(this._parseTpl(this._titleTpl)).appendTo(this.$element).append(options.title);
             }
             if(options.content){
                 this.$contentElement = $(this._parseTpl(this._contentTpl)).append(options.content);

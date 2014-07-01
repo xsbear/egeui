@@ -31,7 +31,7 @@ module.exports = function(grunt) {
       },
       mmui: {
         files: {
-          'dist/<%= pkg.version %>/egeui.js': ['.build/egeui.js']
+          'dist/<%= pkg.version %>/egeui.min.js': ['.build/egeui.js']
         }
       }
     },
@@ -48,7 +48,7 @@ module.exports = function(grunt) {
     copy: {
       debug: {
         src: 'src/egeui.js',
-        dest: 'dist/<%= pkg.version %>/egeui-debug.js',
+        dest: 'dist/<%= pkg.version %>/egeui.js',
       },
     },
     clean: {

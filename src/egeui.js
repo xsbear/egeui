@@ -252,9 +252,13 @@
         },
         trigger: function(event, method){
             if(this._widgetEvents && this._widgetEvents[event] && this._widgetEvents[event][method]){
-                var fns = this._widgetEvents[event][method];
-                for (var i = 0; i < fns.length; i++) {
-                    fns[i].call(this)
+                var handlers = this._widgetEvents[event][method];
+                for (var i = 0; i < handlers.length; i++) {
+                    if ($.isFunction(handlers[i])) {
+                        handlers[i].call(this)
+                    } else {
+                        this[handlers[i]]()
+                    }
                 }
             }
         }
@@ -300,7 +304,7 @@
             Overlay.superClass.setup.call(this);
 
             var defaults = {
-                // element, template, width, height, id , className, trigger
+                // element, template, width, height, id , className, trigger, hideBlur, align
                 parentNode: document.body,
                 position: 'absolute',
                 top: 0,
@@ -418,6 +422,7 @@
      * ====================== */
     var Popup = Overlay.extend({
         setup: function(){
+            // other options: trigger, delegateNode, showAlign
             var defaults = {
                 'triggerType': 'hover',
                 'hideBlur': true,
@@ -564,6 +569,7 @@
         _contentTpl: '<div class="{{classPrefix}}-content" data-role="content"></div>',
 
         setup: function(){
+            // other options: content
             var defaults = {
                 align: {pos: 'center'},
                 classPrefix: 'egeui-dialog',

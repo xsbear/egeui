@@ -164,6 +164,8 @@
         });
     };
 
+
+    // widget base class
     var EVENT_KEY_SPLITTER = /^(\S+)\s*(.*)$/;
     var cidCounter = 0;
     var cachedInstances = {};
@@ -198,7 +200,7 @@
             }
             this.trigger('before', 'render')
             var parentNode = $$(this.options.parentNode);
-            if(!$.contains(document.documentElement, this.element)){
+            if(!isInDocument(this.element)){
                 this.$element.appendTo(parentNode);
             }
             this.trigger('after', 'render');
@@ -330,7 +332,7 @@
             this._isTemplate = !!options.template;
             this.$element = $$(this.$element || options.element || options.template);
             if(!this.$element[0]){
-                throw new Error('element or template not specified');
+                throw new Error('Overlay Error: element or template not specified');
             }
             this.element = this.$element[0];
             options.id && this.$element.attr('id', options.id);
@@ -349,6 +351,8 @@
                 options.align.after = options.align.after || 'render';
                 this.after(options.align.after, this.align);
                 delete(options.align.after);
+                // add to alignOverlays
+                Overlay.alignOverlays.push(this);
             }
             options.hideBlur && this._hideBlur($$(options.trigger))
             options.visible && this.show();
@@ -392,6 +396,7 @@
         destroy : function() {
             Overlay.superClass.destroy.call(this);
             erase(this, Overlay.blurOverlays);
+            erase(this, Overlay.alignOverlays);
         },
         _hideBlur: function(arr, relativeOnly){
             arr = $.makeArray(arr);
@@ -403,6 +408,35 @@
         },
     });
 
+    // 绑定 resize 后重新定位
+    Overlay.alignOverlays = [];
+    var resizeTimer;
+    var winWidth = $(window).width();
+    var winHeight = $(window).height();
+
+    $(window).resize(function () {
+        resizeTimer && clearTimeout(resizeTimer);
+        resizeTimer = setTimeout(function () {
+            var winNewWidth = $(window).width();
+            var winNewHeight = $(window).height();
+
+            if (winWidth !== winNewWidth || winHeight !== winNewHeight) {
+                $(Overlay.alignOverlays).each(function (i, item) {
+                    if(item) {
+                        if(!isInDocument(item.element)){
+                            throw new Error('Overlay Error: an instance element is not existed, it should be destroyed.')
+                            return;
+                        }
+                        item.align();
+                    }
+                });
+            }
+            winWidth = winNewWidth;
+            winHeight = winNewHeight;
+            resizeTimer = null;
+        }, 100);
+    });
+
     // 绑定 blur 隐藏事件
     Overlay.blurOverlays = [];
     $(document).on('click', function (e) {
@@ -412,16 +446,22 @@
     // hide blur overlays
     function hideBlurOverlays(e){
         $(Overlay.blurOverlays).each(function (index, item) {
-            if (!item || !item.visible) {
-                return;
-            }
-            for (var i = 0; i < item._relativeElements.length; i++) {
-                var el = item._relativeElements[i];
-                if (el === e.target || $.contains(el, e.target)) {
+            if (item) {
+                if(!isInDocument(item.element)){
+                    throw new Error('Overlay Error: an instance element is not existed, it should be destroyed.')
                     return;
                 }
+                if(!item.visible){
+                    return;
+                }
+                for (var i = 0; i < item._relativeElements.length; i++) {
+                    var el = item._relativeElements[i];
+                    if (el === e.target || $.contains(el, e.target)) {
+                        return;
+                    }
+                }
+                item.hide();
             }
-            item.hide();
         })
     }
 
@@ -434,72 +474,83 @@
         }
     }
 
+    function isInDocument(element) {
+        return $.contains(document.documentElement, element);
+    }
+
 
     /* Popup WIDGET DEFINITION
      * ====================== */
+    var EVENT_NAMESPACE = '.egeui-popup';
+
     var Popup = Overlay.extend({
         setup: function(){
             // other options: trigger, delegateNode, showAlign
             var defaults = {
                 'triggerType': 'hover',
-                'hideBlur': true,
                 'delay': 200
             }
             var options = this.options = $.extend(defaults, this.options);
             if(options.align && !options.align.elem){
                 options.align.elem = options.trigger;
             }
+            if(options.triggerType === 'click'){
+                options.hideBlur = true;
+            }
 
             Popup.superClass.setup.call(this);
 
+            this.render();
             this._bindTrigger();
 
             // 当使用委托事件时，_hideBlur 方法对于新添加的节点会失效 需要重新绑定
             if (options.delegateNode && options.hideBlur) {
                 var that = this;
                 this.before('show', function () {
-                    this._hideBlur($$(options.trigger, true))
+                    this._hideBlur($$(options.trigger), true)
                 });
+            }
+
+            if(this.options.showAlign){
+                this.after('show', function(){
+                    this.options.showAlign.elem = this.activeTrigger;
+                    this.align(this.options.showAlign)
+                })
             }
         },
 
         _bindTrigger: function(){
             var triggerType = this.options.triggerType,
-                delay = this.options.delay,
+                trigger = this.options.trigger,
                 delegateNode = this.options.delegateNode,
-                trigger = this.options.trigger;
+                delay = this.options.delay;
             var that = this;
 
             if(triggerType === 'click'){
-                bindEvent('click', this.options.trigger, function(){
+                bindEvent('click', trigger, function(){
                     that.activeTrigger = this;
                     that.show()
-                }, this.options.delegateNode, this);
+                }, delegateNode);
 
             } else if(triggerType === 'focus'){
-                this.render();
-
                 bindEvent('focus', trigger, function () {
                     that.activeTrigger = this;
                     that.show();
-                }, delegateNode, this);
+                }, delegateNode);
 
                 bindEvent('blur', trigger, function () {
                     setTimeout(function () {
                         (!that._downOnElement) && that.hide();
                         that._downOnElement = false;
                     }, delay);
-                }, delegateNode, this);
+                }, delegateNode);
 
-                // 为了当input blur时能够选择和操作弹出层上的内容
+                // 为了当input blur时能够选择和操作弹出层上的内容  ??
                 bindEvent('mousedown', this.element, function (e) {
                     that._downOnElement = true;
                 });
 
             } else {
-                this.options.hideBlur = false;
-                this.render();
-
                 var showTimer, hideTimer;
 
                 var leaveHandler = function (e) {
@@ -522,31 +573,37 @@
                     showTimer = setTimeout(function(){
                         that.show()
                     }, delay)
-                }, delegateNode, this);
+                }, delegateNode);
 
-                bindEvent('mouseleave', trigger, leaveHandler, delegateNode, this);
+                bindEvent('mouseleave', trigger, leaveHandler, delegateNode);
 
                 // 鼠标在悬浮层上时不消失
-                this.$element.on("mouseenter", function () {
+                bindEvent('mouseenter', this.$element, function(){
                     clearTimeout(hideTimer);
                 });
-                this.$element.on("mouseleave", leaveHandler);
+                bindEvent('mouseleave', this.$element, leaveHandler);
 
-                this.$element.on('mouseleave', 'select', function (e) {
+                bindEvent('mouseleave', 'select', function (e) {
                     e.stopPropagation();
-                });
+                }, this.$element)
             }
 
-            if(this.options.showAlign){
-                this.after('show', function(){
-                    this.options.showAlign.elem = this.activeTrigger;
-                    this.align(this.options.showAlign)
-                })
-            }
+            // remove trigger event when destroy
+            this.before('destroy', function(){
+                if(delegateNode){
+                    $$(delegateNode).off(EVENT_NAMESPACE, trigger)
+                } else {
+                    $$(trigger).off(EVENT_NAMESPACE)
+                }
+                if(triggerType !== 'click'){
+                    this.$element.off(EVENT_NAMESPACE)
+                }
+            })
         }
     })
 
     function bindEvent(type, element, fn, delegateNode){
+        type += EVENT_NAMESPACE;
         if(delegateNode){
             $$(delegateNode).on(type, element, fn);
         } else {
@@ -611,7 +668,7 @@
                 this.$contentElement = $(this._parseTpl(this._contentTpl)).append(options.content);
                 this.$element.append(this.$contentElement)
             } else {
-                throw new Error('content not specified');
+                throw new Error('Dialog Error: content not specified');
             }
 
             if(options.mask){
@@ -628,6 +685,7 @@
 
             Popup.superClass.setup.call(this);
 
+            // TODO when content is in document, keep element to origin parentNode before destroy
             this._isTemplate = true;
         },
         events: {

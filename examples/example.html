@@ -4,18 +4,21 @@
         <meta charset="UTF-8">
         <title>egeui examples</title>
         <style>
+            body {
+                margin: 0
+            }
             ul {
                 margin: 0;
             }
             .container {
-                margin-top: 20px;
-                margin-left: 300px;
-                /*border: 1px solid #999;*/
-                width: 500px;
                 height: 400px;
+                margin-left: 300px;
+                margin-top: 20px;
+                max-width: 1000px;
+                text-align: center;
             }
             #submit {
-                margin-top: 200px;
+                margin-top: 100px;
             }
             .o1 {
                 background-color: #f3f3f3;
@@ -41,7 +44,7 @@
 
         <div class="container">
             <button id="submit">popup</button>
-            <button id="destroy">destroy</button>
+            <button id="destroy">destroy All</button>
             <button id="setPosition">setPosition</button>
             <button id="dropdown">下拉框</button>
             <ul class="dropdown-menu">
@@ -96,31 +99,26 @@
         <script type="text/javascript">
             $(function() {
 
-                var oevrlayB = new egeui.Overlay({
-                    template: '<div class="o2">iw2323232323</div>',
-                    hideBlur: true,
-                    visible: true,
+               var oevrlayA = new egeui.Popup({
+                    trigger: '#submit',
+                    triggerType: 'click',
+                    template: '<div class="o1"><p>13223</p>sdfasdfs</div>',
+                    hideBlur : true,
                     align: {
-                        pos: 'center'
+                        pos: 'bottom'
                     }
                 });
-                var oevrlayA;
                 $('#submit').click(function(e){
-                    oevrlayA = new egeui.Overlay({
-                        template: '<div class="o1"><p>13223</p>sdfasdfs</div>',
-                        // hideBlur : true,
-                        // align: {
-                        //     elem: $('#submit'),
-                        //     pos: 'bottom',
-                        //     offset: '0 50%'
-                        // }
-                    });
-
-                    console.log(oevrlayA)
+                    $(this).text($(this).text() + ' A')
                 })
+
                 $('#destroy').click(function(e){
                      oevrlayA.destroy();
+                     pop_hover.destroy();
+                     pop.destroy();
+                     pop_click.destroy();
                 })
+
                 $('#setPosition').click(function(){
                     oevrlayA.setPosition({
                         top: 100, left: 100, collision: 'flip'
@@ -128,6 +126,14 @@
                     oevrlayA.show()
                 })
 
+                var oevrlayB = new egeui.Overlay({
+                    template: '<div class="o2">iw2323232323</div>',
+                    // hideBlur: true,
+                    visible: true,
+                    align: {
+                        pos: 'center'
+                    }
+                });
 
                 var pop = new egeui.Popup({
                     trigger: '#dropdown',

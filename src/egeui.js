@@ -22,6 +22,9 @@
 
     Position.pin = function(pinElem, baseObject) {
         pinElem = $$(pinElem);
+        if(!pinElem[0]){
+            throw new Error('Position Error: pin element not specified');
+        }
         var collision = baseObject.collision || 'flip';
         var posTop, posLeft;
 
@@ -35,6 +38,9 @@
             baseHeight = baseWidth = 0;
         } else {
             var baseElem = $$(baseObject.elem);
+            if(!baseElem[0]){
+                throw new Error('Position Error: base element not specified');
+            }
             var basePos = baseElem.offset();
             var pinPos = baseObject.pos;
 
@@ -85,6 +91,10 @@
                 }
             }
         }
+
+        var parentOffset = pinElem.offsetParent().offset();
+        posLeft -= parentOffset.left;
+        posTop -= parentOffset.top;
 
         // collision handle
         var docST = $(document).scrollTop(), docSL = $(document).scrollLeft(),
@@ -139,7 +149,10 @@
     };
 
     Position.center = function(pinElem, baseElem) {
-        pinElem = $$(pinElem);
+        pinElem = $$(pinElem[0]);
+        if(!pinElem){
+            throw new Error('Position Error: pin element not specified');
+        }
         baseElem = $$(baseElem || window);
         var posLeft = parseInt((baseElem.width() - pinElem.outerWidth()) / 2, 10);
         var posTop = baseElem.height() - pinElem.outerHeight();
@@ -332,7 +345,11 @@
             options.width && this.$element.css('width', options.width);
             options.height && this.$element.css('height', options.height);
 
-            this.after('render', this.align);
+            if(options.align){
+                options.align.after = options.align.after || 'render';
+                this.after(options.align.after, this.align);
+                delete(options.align.after);
+            }
             options.hideBlur && this._hideBlur($$(options.trigger))
             options.visible && this.show();
         },
@@ -429,6 +446,9 @@
                 'delay': 200
             }
             var options = this.options = $.extend(defaults, this.options);
+            if(options.align && !options.align.elem){
+                options.align.elem = options.trigger;
+            }
 
             Popup.superClass.setup.call(this);
 
@@ -518,7 +538,7 @@
             }
 
             if(this.options.showAlign){
-                this.before('show', function(){
+                this.after('show', function(){
                     this.options.showAlign.elem = this.activeTrigger;
                     this.align(this.options.showAlign)
                 })

@@ -71,7 +71,7 @@ A egeio ui library
 * parentNode:
 * trigger:
 * hideBlur: Type `boolean`
-* align: 同 Position
+* align: 定位选项同 Position.pin，如指定 `pos` 为 `center`，则调用 Position.center， 同时可指定 `elem` 选项作为 baseElem；另外可指定 `after` 配置，指在浮层初始化的哪个步骤之后进行定位，默认为 `render`，即在渲染之后，可指定为 `show`，以解决有额外的offsetParent时显示前定位无效的情况，如 Dialog 中出现的浮层。
 
 ### 方法
 * show: 显示浮层
@@ -95,7 +95,8 @@ A egeio ui library
 * triggerType: Type `String` Value: `click`, `focus`, `hover`(default)
 * delay: Type `Integer` 延时
 * delegateNode: Type `element|selector|jQuery` 触发元素所委托的容器元素
-* showAlign: Type `Object`, 显示前定位，参数同 Position.pin, elem自动设为当前trigger，无需指定
+* showAlign: Type `Object`, 显示后定位，参数同 Position.pin, elem自动设为当前trigger，无需指定
+* align: 如align选项未指定 elem，则默认为触发元素 trigger
 
 ## Mask
 全屏遮罩层组件
@@ -134,3 +135,4 @@ Default value: `0.4`
 * title: Type `String` ''
 * content: Type `String|element|jQuery`
 * mask: Type `Object` 同Mask, default `true`
+* align: 默认为 `{pos: 'center'}`

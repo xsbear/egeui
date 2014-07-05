@@ -89,6 +89,7 @@
             <li><a href="#">重命名</a></li>
             <li><a href="#">属性</a></li>
         </ul>
+        <button id="opendialog">dialog</button>
         <p style="margin-top:400px;">test</p>
         <script type="text/javascript" src="jquery.min.js"></script>
         <script type="text/javascript" src="../src/egeui.js"></script>
@@ -186,24 +187,40 @@
                         // offset: '0 50%'
                     }
                 });
+                $('#opendialog').click(function(){
 
-                var dialog = new egeui.Dialog({
-                    content: '<div><button class="confirm">confirm</button></div>',
-                    mask: true,
-                    title: 'title1123',
-                    events: {
-                        'click .confirm': function(e){
-                            console.log(e.target)
-                            console.log(this)
+                    var dialog = new egeui.Dialog({
+                        content: '<div style="width:300px;height:200px;background-color:#fff;"><button class="confirm">confirm</button><div id="offsetparent">xxxx</div></div>',
+                        mask: true,
+                        title: 'title1123',
+                        events: {
+                            'click .confirm': function(e){
+                                console.log(e.target)
+                                console.log(this)
+                            }
                         }
-                    }
-                    // closeTpl: ''
-                }).show();
-                console.log(dialog)
-                $('#destroy_dialog').click(function(e){
-                    dialog.destroy()
-                })
+                        // closeTpl: ''
+                    }).after('show', function(){
 
+                        new egeui.Popup({
+                            trigger: '.confirm',
+                            element: '#offsetparent',
+                            // visible: true,
+                            triggerType: 'click',
+                            align: {
+                                after: 'show',
+                                pos: 'bottom',
+                                collision: 'flip'
+                                // offset: '0 50%'
+                            }
+                        });
+
+                    }).show();
+                    console.log(dialog)
+                    $('#destroy_dialog').click(function(e){
+                        dialog.destroy()
+                    })
+                });
             });
         </script>
     </body>

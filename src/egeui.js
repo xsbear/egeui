@@ -28,7 +28,7 @@
         var collision = baseObject.collision || 'flip';
         var posTop, posLeft;
 
-        var baseHeight, baseWidth;
+        var baseHeight, baseWidth, basePos;
         var pinHeight = pinElem.outerHeight(),
             pinWidth = pinElem.outerWidth();
 
@@ -41,7 +41,7 @@
             if(!baseElem[0]){
                 throw new Error('Position Error: base element not specified');
             }
-            var basePos = baseElem.offset();
+            basePos = baseElem.offset();
             var pinPos = baseObject.pos;
 
             baseHeight = baseElem.outerHeight();
@@ -66,13 +66,6 @@
                 posTop = basePos.top;
             }
 
-            if(posTop < 0){
-                posTop = basePos.top + baseHeight;
-            }
-            if(posLeft < 0){
-                posLeft = basePos.left + baseWidth;
-            }
-
             if(baseObject.offset){
                 var offset = baseObject.offset.split(' ');
                 if(offset[0].indexOf('%') > -1){
@@ -80,14 +73,13 @@
                 } else {
                     posTop += parseInt(offset[0], 10);
                 }
-                posTop = posTop < 0 ? 0: posTop;
+
                 if(offset.length > 1){
                     if(offset[1].indexOf('%') > -1){
                         posLeft -= parseInt(offset[1].slice(0, -1), 10) / 100 * pinWidth - baseWidth / 2;
                     } else {
                         posLeft += parseInt(offset[1], 10);
                     }
-                    posLeft = posLeft < 0 ? 0: posLeft;
                 }
             }
         }
@@ -102,12 +94,14 @@
             winH = $(window).height(), winW = $(window).width();
 
         if(posTop < docST){
-            if(collision === 'fit'){
-                posTop = docST;
-            } else if(collision === 'flip'){
-                posTop = posTop + pinHeight + baseHeight;
-                if(posTop + pinHeight > docH){
-                    posTop = docH - pinHeight;
+            if(!basePos || basePos.top > docST){
+                if(collision === 'fit'){
+                    posTop = docST;
+                } else if(collision === 'flip'){
+                    posTop = posTop + pinHeight + baseHeight;
+                    if(posTop + pinHeight > docH){
+                        posTop = docH - pinHeight;
+                    }
                 }
             }
         } else if(posTop + pinHeight - docST > winH){
@@ -123,12 +117,14 @@
         }
 
         if(posLeft < docSL){
-            if(collision === 'fit'){
-                posLeft = docSL;
-            } else if(collision === 'flip'){
-                posLeft = posLeft + pinWidth + baseWidth;
-                if(posLeft + pinWidth > docW){
-                    posLeft = docW - pinWidth;
+            if(!basePos || basePos.left > docSL){
+                if(collision === 'fit'){
+                    posLeft = docSL;
+                } else if(collision === 'flip'){
+                    posLeft = posLeft + pinWidth + baseWidth;
+                    if(posLeft + pinWidth > docW){
+                        posLeft = docW - pinWidth;
+                    }
                 }
             }
         } else if(posLeft + pinWidth - docSL > winW){

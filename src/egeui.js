@@ -84,10 +84,6 @@
             }
         }
 
-        var parentOffset = pinElem.offsetParent().offset();
-        posLeft -= parentOffset.left;
-        posTop -= parentOffset.top;
-
         // collision handle
         var docST = $(document).scrollTop(), docSL = $(document).scrollLeft(),
             docH = $(document).height(), docW = $(document).width(),
@@ -137,6 +133,11 @@
                 }
             }
         }
+
+        // offsetParent adjust
+        var parentOffset = pinElem.offsetParent().offset();
+        posLeft -= parentOffset.left;
+        posTop -= parentOffset.top;
 
         pinElem.css({
             'top': posTop,
@@ -623,7 +624,7 @@
             }
             var options = this.options = $.extend(defaults, this.options);
 
-            Popup.superClass.setup.call(this);
+            Mask.superClass.setup.call(this);
 
             this.$element.css({
                 'background-color': options.backgroundColor,
@@ -679,7 +680,7 @@
                 })
             }
 
-            Popup.superClass.setup.call(this);
+            Dialog.superClass.setup.call(this);
 
             // TODO when content is in document, keep element to origin parentNode before destroy
             this._isTemplate = true;
@@ -696,10 +697,67 @@
     })
 
 
+    var EVENT_NAMESPACE_AUTOCOMPLETE = '.egeui-autocomplete'
+    /* AutoComplete WIDGET DEFINITION
+     * ====================== */
+    var AutoComplete = Overlay.extend({
+        _selectTpl: '<div class="{{classPrefix}}"><ul data-role="items"></ul></div>',
+        _itemTpl: '<li class="{{classPrefix}}-item" data-role="item">{{item}}</li>',
+
+        setup: function(){
+            var defaults = {
+                align: {pos: 'bottom'},
+                classPrefix: 'egeui-select',
+                selectTpl: this._selectTpl,
+                itemTpl: this._itemTpl,
+                filter: 'startsWith'
+                // dataSource:
+            };
+            var options = this.options = $.extend(defaults, this.options);
+
+            this.$element = $(this._parseTpl(options.selectTpl));
+            options.align.elem = options.trigger;
+
+            AutoComplete.superClass.setup.call(this);
+
+            this._bindTrigger()
+        },
+
+        // bind event
+        _bindTrigger: function(){
+            var trigger = this.options.trigger;
+            var that = this;
+
+            acBindEvent('keypress', trigger, function(){
+                console.log('sss')
+                that.show();
+            })
+
+            acBindEvent('blur', trigger, function(){
+                that.hide();
+            })
+
+        },
+
+        //data source
+
+
+        _parseTpl: function(tpl){
+            return tpl.replace(/\{\{classPrefix\}\}/g, this.options.classPrefix);
+        }
+    })
+
+    function acBindEvent(type, element, fn){
+        type += EVENT_NAMESPACE_AUTOCOMPLETE;
+        $$(element).on(type, fn);
+    }
+
+
     var pub = {};
     pub.Overlay = Overlay;
     pub.Popup = Popup;
     pub.Dialog = Dialog;
+    pub.AutoComplete = AutoComplete;
 
     return pub;
 }));

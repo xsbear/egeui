@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html>
+   <head>
+        <meta charset="UTF-8">
+        <title>egeui examples</title>
+        <style>
+            body {
+                margin: 0
+            }
+            .container {
+                height: 400px;
+                margin-left: 100px;
+                margin-top: 20px;
+                max-width: 1000px;
+                text-align: center;
+            }
+            .egeui-select {
+                border: 1px solid #ccc;
+                height: 200px;
+                width: 160px;
+            }
+        </style>
+    </head>
+    <body>
+
+        <div class="container">
+
+            <input type="text" id="search">
+
+        </div>
+
+        <script type="text/javascript" src="jquery.min.js"></script>
+        <script type="text/javascript" src="../src/egeui.js"></script>
+        <script type="text/javascript">
+            $(function() {
+                var pop = new egeui.AutoComplete({
+                    trigger: '#search'
+                })
+
+            });
+        </script>
+    </body>
+</html>

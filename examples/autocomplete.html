@@ -2,7 +2,7 @@
 <html>
    <head>
         <meta charset="UTF-8">
-        <title>egeui examples</title>
+        <title>autocomplete examples</title>
         <style>
             body {
                 margin: 0
@@ -29,12 +29,13 @@
 
         </div>
 
-        <script type="text/javascript" src="jquery.min.js"></script>
+        <script type="text/javascript" src="jquery-1.11.1.min.js"></script>
         <script type="text/javascript" src="../src/egeui.js"></script>
         <script type="text/javascript">
             $(function() {
                 var pop = new egeui.AutoComplete({
-                    trigger: '#search'
+                    trigger: '#search',
+                    dataSource: ['abc', 'bde', 'acc', 'sss']
                 })
 
             });

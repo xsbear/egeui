@@ -348,11 +348,16 @@
                 options.align.after = options.align.after || 'render';
                 this.after(options.align.after, this.align);
                 delete(options.align.after);
-                // add to alignOverlays
-                Overlay.alignOverlays.push(this);
             }
             options.hideBlur && this._hideBlur($$(options.trigger))
             options.visible && this.show();
+        },
+        render: function(){
+            Overlay.superClass.render.call(this);
+            // add to alignOverlays
+            if(this.options.align){
+                Overlay.alignOverlays.push(this);
+            }
         },
         visible: false,
         align: function(posOption){
@@ -697,6 +702,38 @@
     })
 
 
+    var DataSource = function(source){
+        this.source = source;
+        this.init();
+    }
+    DataSource.prototype = {
+        init: function(){
+            if($.isArray(this.source)){
+                this.type = 'array'
+            } else if($.isFunction(this.source)){
+                this.type = 'function'
+            } else if ($.isPlainObject(source)) {
+                this.type = 'object';
+            } else {
+                this.type = 'url';
+            }
+        },
+
+        getData: function(query, callback){
+            this['_get' + capitalize(this.type) + 'Data'](query, callback);
+        },
+
+        _getArrayData: function(query, callback){
+            callback(this.source)
+        }
+    }
+
+    function capitalize(str) {
+        return str.replace(/^([a-z])/, function (f, m) {
+            return m.toUpperCase();
+        });
+    }
+
     var EVENT_NAMESPACE_AUTOCOMPLETE = '.egeui-autocomplete'
     /* AutoComplete WIDGET DEFINITION
      * ====================== */
@@ -709,9 +746,7 @@
                 align: {pos: 'bottom'},
                 classPrefix: 'egeui-select',
                 selectTpl: this._selectTpl,
-                itemTpl: this._itemTpl,
-                filter: 'startsWith'
-                // dataSource:
+                itemTpl: this._itemTpl
             };
             var options = this.options = $.extend(defaults, this.options);
 
@@ -720,17 +755,58 @@
 
             AutoComplete.superClass.setup.call(this);
 
-            this._bindTrigger()
+            this._bindTrigger();
+
+            this.dataSource = new DataSource(options.dataSource);
+            if(this.dataSource.type !== 'url'){
+                this._initFilter();
+            }
+        },
+
+        doQuery: function(){
+
+            this.dataSource.getData(this.query, wrapFn(this.filterData, this));
+
+
+            if(!this.visible){
+                this.show();
+            }
+
+            // console.log(this.query)
+        },
+
+        filterData: function(data){
+            if(this.filter){
+                data = this.filter(data, this.query);
+            }
+            this.data = data;
+            console.log(data);
+        },
+
+        _initFilter: function(){
+            var filter = this.options.filter || 'startsWith';
+            if($.isFunction(filter)){
+                this.filter = filter;
+            } else {
+                this.filter = Filters[filter];
+            }
+            if(!this.filter){
+                throw new Error('Specified filter is not existed.')
+            }
         },
 
         // bind event
         _bindTrigger: function(){
-            var trigger = this.options.trigger;
+            var trigger = $$(this.options.trigger)[0];
             var that = this;
 
-            acBindEvent('keypress', trigger, function(){
-                console.log('sss')
-                that.show();
+            bindTextchange(trigger);
+
+            $(trigger).on('textchange', function(ev){
+                var query_new = $(ev.target).val();
+                if(compare(this.query, query_new)) return;
+                that.query = query_new;
+                that.doQuery();
             })
 
             acBindEvent('blur', trigger, function(){
@@ -738,7 +814,7 @@
             })
 
         },
-
+        query: '',
         //data source
 
 
@@ -747,10 +823,76 @@
         }
     })
 
+    var Filters = {
+        'startsWith': function(data, search){
+            var re = new RegExp('^' + escapeKeyword(search));
+            var result = [];
+            $.each(data, function(index, item){
+                if(re.test(item)){
+                    result.push(item)
+                }
+            })
+            return result;
+        },
+        'stringMatch': function(data, search){
+
+        }
+    }
+
+    var specialKeyCodeMap = {
+        9: 'tab',
+        27: 'esc',
+        37: 'left',
+        39: 'right',
+        13: 'enter',
+        38: 'up',
+        40: 'down'
+    };
+
+    function escapeKeyword (str){
+        return str.replace(/[\-\[\]\/\{\}\(\)\*\+\?\.\\\^\$\|]/g, "\\$&");
+    }
+    function compare(a, b) {
+        a = (a || '').replace(/^\s*/g, '').replace(/\s{2,}/g, ' ');
+        b = (b || '').replace(/^\s*/g, '').replace(/\s{2,}/g, ' ');
+        return a === b;
+    }
     function acBindEvent(type, element, fn){
         type += EVENT_NAMESPACE_AUTOCOMPLETE;
         $$(element).on(type, fn);
     }
+    var lteIE9 = /\bMSIE [6789]\.0\b/.test(navigator.userAgent);
+    // bind text change event
+    function bindTextchange(element){
+        if (lteIE9) {
+            var elementValue = element.value;
+            element.attachEvent("onpropertychange", function(ev){
+                if (ev.propertyName !== "value") return;
+                var value = ev.srcElement.value;
+                if (value === elementValue) return;
+                elementValue = value;
+                $(element).trigger("textchange");
+            });
+            $(element).on("selectionchange keyup keydown", function() {
+                if (element.value !== elementValue) {
+                    elementValue = element.value;
+                    $(element).trigger("textchange");
+                }
+            });
+        } else {
+            $(element).on("input", function(e) {
+                if (element.nodeName !== "TEXTAREA") {
+                    $(element).trigger("textchange");
+                }
+            });
+        }
+    }
+    function wrapFn(fn, context) {
+        return function () {
+            fn.apply(context, arguments);
+        };
+    }
+
 
 
     var pub = {};

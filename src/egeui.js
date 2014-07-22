@@ -179,90 +179,17 @@
         } catch(e){}
     })
 
-    /* Widget CLASS DEFINITION
+    /* BASE CLASS DEFINITION
     * ====================== */
-    var Widget = function(options) {
-        this.options = options;
-        this.setup();
-    }
-    Widget.prototype = {
-        rendered: false,
-        setup: function(){
-            this.cid = uniqueCid();
-            cachedInstances[this.cid] = this;
-        },
-        render: function(){
-            if (!this.rendered) {
-                this.rendered = true;
-            }
-            this.trigger('before', 'render')
-            var parentNode = $$(this.options.parentNode);
-            if(!isInDocument(this.element)){
-                this.$element.appendTo(parentNode);
-            }
-            this.trigger('after', 'render');
-
-            this._delegateEvents();
-
-            return this;
-        },
-        _delegateEvents: function(){
-            var events = this.events = $.extend(this.events, this.options.events);
-            if(this.events){
-                for(var key in this.events){
-                    if(this.events.hasOwnProperty(key)){
-                        var match = key.match(EVENT_KEY_SPLITTER);
-                        var  eventType = match[1];
-                        var selector = match[2] || undefined;
-
-                        (function(handler, widget) {
-                            var callback = function(ev) {
-                                if ($.isFunction(handler)) {
-                                    handler.call(widget, ev)
-                                } else {
-                                    widget[handler](ev)
-                                }
-                            }
-                            // delegate
-                            if (selector) {
-                                widget.$element.on(eventType, selector, callback)
-                            } else {
-                                widget.$element.on(eventType, callback)
-                            }
-                        })(events[key], this)
-                    }
-                }
-            }
-        },
-        _getEvents: function(event, method){
-            this._widgetEvents = this._widgetEvents || {};
-            var events = this._widgetEvents[event] || (this._widgetEvents[event] = {});
-            return events[method] || (events[method] = []);
-        },
-        before: function(method, fn){
-            var events = this._getEvents('before', method);
+    var Base = function(){}
+    Base.prototype = {
+        on: function(event, fn){
+            var events = this._getEvents(event, 'on');
             events.push(fn);
             return this;
-        },
-        after: function(method, fn){
-            var events = this._getEvents('after', method);
-            events.push(fn);
-            return this;
-        },
-        destroy: function(){
-            this.trigger('before', 'destroy')
-            this.$element.off();
-            delete cachedInstances[this.cid];
-
-            if(this._isTemplate){
-                this.$element.remove();
-            }
-
-            this.trigger('after', 'destroy');
-            this._widgetEvents = null;
-            this.$element = null;
         },
         trigger: function(event, method){
+            method = method || 'on';
             if(this._widgetEvents && this._widgetEvents[event] && this._widgetEvents[event][method]){
                 var handlers = this._widgetEvents[event][method];
                 for (var i = 0; i < handlers.length; i++) {
@@ -273,10 +200,15 @@
                     }
                 }
             }
-        }
+        },
+        _getEvents: function(event, method){
+            this._widgetEvents = this._widgetEvents || {};
+            var events = this._widgetEvents[event] || (this._widgetEvents[event] = {});
+            return events[method] || (events[method] = []);
+        },
     }
 
-    Widget.extend = function(protoProps, staticProps) {
+    Base.extend = function(protoProps, staticProps) {
         var parent = this;
         var child;
 
@@ -308,6 +240,89 @@
 
         return child;
     };
+
+    /* Widget CLASS DEFINITION
+    * ====================== */
+    var Widget = Base.extend({
+        constructor: function(options) {
+            this.options = options;
+            this.setup();
+        },
+        rendered: false,
+        setup: function(){
+            this.cid = uniqueCid();
+            cachedInstances[this.cid] = this;
+        },
+        render: function(){
+            if (!this.rendered) {
+                this.rendered = true;
+            }
+            this.trigger('before', 'render')
+            var parentNode = $$(this.options.parentNode);
+            if(!isInDocument(this.element)){
+                this.$element.appendTo(parentNode);
+            }
+            this.trigger('after', 'render');
+
+            this._delegateEvents();
+
+            return this;
+        },
+        before: function(method, fn){
+            var events = this._getEvents('before', method);
+            events.push(fn);
+            return this;
+        },
+        after: function(method, fn){
+            var events = this._getEvents('after', method);
+            events.push(fn);
+            return this;
+        },
+        destroy: function(){
+            this.trigger('before', 'destroy')
+            this.$element.off();
+            delete cachedInstances[this.cid];
+
+            if(this._isTemplate){
+                this.$element.remove();
+            }
+
+            this.trigger('after', 'destroy');
+            this._widgetEvents = null;
+            this.$element = null;
+        },
+        _delegateEvents: function(){
+            var events = this.events = $.extend(this.events, this.options.events);
+            if(this.events){
+                for(var key in this.events){
+                    if(this.events.hasOwnProperty(key)){
+                        var match = key.match(EVENT_KEY_SPLITTER);
+                        var  eventType = match[1];
+                        var selector = match[2] || undefined;
+
+                        (function(handler, widget) {
+                            var callback = function(ev) {
+                                if ($.isFunction(handler)) {
+                                    handler.call(widget, ev)
+                                } else {
+                                    widget[handler](ev)
+                                }
+                            }
+                            // delegate
+                            if (selector) {
+                                widget.$element.on(eventType, selector, callback)
+                            } else {
+                                widget.$element.on(eventType, callback)
+                            }
+                        })(events[key], this)
+                    }
+                }
+            }
+        },
+        $: function(select){
+            return this.$element.find(select);
+        }
+    });
 
     /* Overlay WIDGET DEFINITION
      * ====================== */
@@ -723,8 +738,9 @@
             this['_get' + capitalize(this.type) + 'Data'](query, callback);
         },
 
-        _getArrayData: function(query, callback){
-            callback(this.source)
+        _getArrayData: function(){
+            // console.log(this.source)
+            return this.source;
         }
     }
 
@@ -739,18 +755,20 @@
      * ====================== */
     var AutoComplete = Overlay.extend({
         _selectTpl: '<div class="{{classPrefix}}"><ul data-role="items"></ul></div>',
-        _itemTpl: '<li class="{{classPrefix}}-item" data-role="item">{{item}}</li>',
+        _itemWrapTpl: '<li class="{{classPrefix}}-item" data-role="item">{{item}}</li>',
 
         setup: function(){
             var defaults = {
                 align: {pos: 'bottom'},
                 classPrefix: 'egeui-select',
                 selectTpl: this._selectTpl,
-                itemTpl: this._itemTpl
+                itemTpl: '',
+                delay: 200
             };
             var options = this.options = $.extend(defaults, this.options);
 
             this.$element = $(this._parseTpl(options.selectTpl));
+            this._itemWrapTpl = this._parseTpl(this._itemWrapTpl);
             options.align.elem = options.trigger;
 
             AutoComplete.superClass.setup.call(this);
@@ -760,27 +778,74 @@
             this.dataSource = new DataSource(options.dataSource);
             if(this.dataSource.type !== 'url'){
                 this._initFilter();
+                this.sourceData = normalize(options.dataSource);
             }
-        },
 
+            this.after('hide', function(){
+                if(this.items){
+                    this.lastIndex = this.selectedIndex;
+                    this.selectedIndex =  -1;
+                    this.trigger('indexChange');
+                }
+            }).on('indexChange', this._handleItemHover);
+
+            this.$('[data-role=items]').on('mouseenter', 'li', wrapFn(function(ev){
+                this.lastIndex = this.selectedIndex;
+                this.selectedIndex = this.items.index(ev.currentTarget);
+                this.trigger('indexChange');
+            }, this));
+        },
+        show: function(){
+            if(this.visible) return;
+            if(this._isEmpty()) return;
+            AutoComplete.superClass.show.call(this);
+        },
+        // hide: function(){
+        //     this.items[this.selectedIndex].removeClass('selected')
+        //     this.selectedIndex =  -1;
+        //     AutoComplete.superClass.hide.call(this);
+        // },
+        query: '',
+        lastIndex: -1,
+        selectedIndex: -1,
         doQuery: function(){
 
-            this.dataSource.getData(this.query, wrapFn(this.filterData, this));
-
-
-            if(!this.visible){
-                this.show();
+            // console.log(this.query)
+            if(this.query === ''){
+                this.data = [];
+                return;
             }
 
-            // console.log(this.query)
+            if(this.sourceData){
+                this._filterData(this.sourceData)
+            }
+
+            this._fillItems();
         },
 
-        filterData: function(data){
+        _fillItems: function(){
+            var items = '';
+            $.each(this.data, wrapFn(function(index, item){
+                item = this._renderItem(item);
+                items += this._itemWrapTpl.replace('{{item}}', item)
+            }, this))
+            this.items = this.$('[data-role=items]').html(items).children();
+        },
+
+        _renderItem: function (item){
+            if(item.value && !$.isPlainObject(item.value)){
+                return highlight(item.value, item.hlIndex);
+            } else {
+                return parseItem(this.options.itemTpl, item)
+            }
+        },
+
+        _filterData: function(data){
             if(this.filter){
                 data = this.filter(data, this.query);
+                // console.log(data)
+                this.data = data;
             }
-            this.data = data;
-            console.log(data);
         },
 
         _initFilter: function(){
@@ -802,22 +867,69 @@
 
             bindTextchange(trigger);
 
-            $(trigger).on('textchange', function(ev){
-                var query_new = $(ev.target).val();
-                if(compare(this.query, query_new)) return;
+            var queryTimer;
+            $(trigger).on('textchange.autocomplete', function(ev){
+                var query_new = $(ev.target).val().replace(/^\s*/, '');
+                if(compare(that.query, query_new)) return;
                 that.query = query_new;
-                that.doQuery();
-            })
+
+                queryTimer && clearTimeout(queryTimer);
+                queryTimer = setTimeout(function(){
+                    that._clear();
+                    that.hide();
+                    that.doQuery();
+                    that.show()
+
+                    queryTimer = null;
+                }, that.options.delay)
+            }).on('keydown.autocomplete', wrapFn(this._handleKeydown, this))
+            .on('keyDown keyUp', wrapFn(this._handleKeyDownUp, this))
+            .on('keyEsc', wrapFn(this.hide, this));
 
             acBindEvent('blur', trigger, function(){
                 that.hide();
             })
-
         },
-        query: '',
-        //data source
+        _handleKeydown: function (e) {
+            var keyName = specialKeyCodeMap[e.which];
+            if (keyName) {
+                e.preventDefault();
+                var eventKey = 'key' + capitalize(keyName);
+                $$(this.options.trigger).trigger(e.type = eventKey, e);
+            }
+        },
+        _handleKeyDownUp: function(e){
+            if(!this.items) return;
+            this.show();
 
+            this.lastIndex = this.selectedIndex;
 
+            if(e.type === 'keyDown'){
+                this.selectedIndex++;
+            } else {
+                this.selectedIndex--;
+            }
+            if(this.selectedIndex === this.items.length){
+                this.selectedIndex = -1;
+            }
+            if(this.selectedIndex === -2){
+                this.selectedIndex = this.items.length - 1;
+            }
+            this.trigger('indexChange');
+        },
+        _handleItemHover: function(){
+            $(this.items[this.lastIndex]).removeClass('item-selected');
+            $(this.items[this.selectedIndex]).addClass('item-selected');
+        },
+        _isEmpty: function () {
+            var data = this.data;
+            return !(data && data.length > 0);
+        },
+        _clear: function () {
+            this.$('[data-role=items]').empty();
+            delete this.items;
+            this.selectedIndex =  -1;
+        },
         _parseTpl: function(tpl){
             return tpl.replace(/\{\{classPrefix\}\}/g, this.options.classPrefix);
         }
@@ -827,9 +939,31 @@
         'startsWith': function(data, search){
             var re = new RegExp('^' + escapeKeyword(search));
             var result = [];
+            var l = search.length;
             $.each(data, function(index, item){
-                if(re.test(item)){
-                    result.push(item)
+                var new_item = {};
+                var matched = false;
+
+                for(var field in item){
+                    if(!$.isPlainObject(item[field]) && field === 'value'){
+                        new_item.value = item.value;
+                        if(re.test(item.value)){
+                            new_item.hlIndex = [0, l];
+                            matched = true;
+                        }
+                    } else if($.isPlainObject(item[field])){
+                        new_item[field] = {
+                            value: item[field].value
+                        };
+                        if(re.test(item[field].value)){
+                            new_item[field].hlIndex = [0, l];
+                            matched = true;
+                        }
+                    }
+                }
+                if(matched){
+                    new_item.index = index;
+                    result.push(new_item);
                 }
             })
             return result;
@@ -837,6 +971,43 @@
         'stringMatch': function(data, search){
 
         }
+    }
+
+    // 标准数据格式
+    // {
+    //     value: 'xxx' 或者 {'field1': {value: '123'}, 'field2': {value: 'xxx'}} 待匹配字段
+    //     hlIndex: [start, end] 高亮范围  filter 后返回
+    // }
+    function normalize(data) {
+        var result = [];
+        $.each(data, function (index, item) {
+            if (isString(item)) {
+                result.push({
+                    value: item
+                });
+            } else if ($.isPlainObject(item)) {
+                for(var field in item){
+                    item[field] = {
+                        value: item[field]
+                    }
+                }
+                result.push(item);
+            }
+        });
+        return result;
+    }
+    function parseItem(tpl, data){
+        var re = /(.*?)\{\{([\w\-]+)\}\}(.*?)/g;
+        return tpl.replace(re, function(match, p1, p2, p3){
+            return  p1 + highlight(data[p2].value, data[p2].hlIndex) + p3;
+        })
+    }
+    function highlight(text, hlIndex){
+        if(!hlIndex) return text;
+        var l = text.length;
+        return text.substr(0, hlIndex[0]) + '<b>' +
+               text.substr(hlIndex[0], hlIndex[1]) + '</b>' +
+               text.substr(hlIndex[1], l);
     }
 
     var specialKeyCodeMap = {
@@ -849,6 +1020,9 @@
         40: 'down'
     };
 
+    function isString(str) {
+        return Object.prototype.toString.call(str) === '[object String]';
+    }
     function escapeKeyword (str){
         return str.replace(/[\-\[\]\/\{\}\(\)\*\+\?\.\\\^\$\|]/g, "\\$&");
     }
@@ -881,9 +1055,9 @@
             });
         } else {
             $(element).on("input", function(e) {
-                if (element.nodeName !== "TEXTAREA") {
+                // if (element.nodeName !== "TEXTAREA") {
                     $(element).trigger("textchange");
-                }
+                // }
             });
         }
     }

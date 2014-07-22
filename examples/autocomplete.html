@@ -4,9 +4,16 @@
         <meta charset="UTF-8">
         <title>autocomplete examples</title>
         <style>
-            body {
-                margin: 0
+
+            body, div, dl, dt, dd, ul, ol, li, h1, h2, h3, h4, h5, h6, pre, code, form, fieldset, legend, input, textarea, p, blockquote, th, td {
+                margin:0;
+                padding:0;
             }
+
+            ol, ul {
+                list-style:none;
+            }
+
             .container {
                 height: 400px;
                 margin-left: 100px;
@@ -16,8 +23,16 @@
             }
             .egeui-select {
                 border: 1px solid #ccc;
-                height: 200px;
-                width: 160px;
+                /*height: 200px;*/
+                /*width: 260px;*/
+            }
+            .egeui-select ul li {
+                padding: 5px;
+                line-height: 20px;
+            }
+            .egeui-select ul li.item-selected {
+                background-color: #f0f0f0;
+                cursor: default;
             }
         </style>
     </head>
@@ -25,7 +40,7 @@
 
         <div class="container">
 
-            <input type="text" id="search">
+            <input type="text" id="search" autocomplete="off">
 
         </div>
 
@@ -35,7 +50,26 @@
             $(function() {
                 var pop = new egeui.AutoComplete({
                     trigger: '#search',
-                    dataSource: ['abc', 'bde', 'acc', 'sss']
+                    // dataSource: ['abc', 'bde', 'acc', 'sss'],
+                    dataSource: [
+                        {name: 'huangwenping', email: 'xsbear@egeio.com'},
+                        {name: 'huangwei', email: 'ishout@egeio.com'},
+                        {name: 'huaxxx', email: 'ishout@egeio.com'},
+                        {name: 'hetx', email: 'ishout@egeio.com'},
+                        {name: 'zx', email: 'ishout@egeio.com'},
+                        {name: 'zedsd', email: 'ishout@egeio.com'},
+                        {name: 'zedxxx', email: 'ishout@egeio.com'},
+                        {name: 'zed333', email: 'ishout@egeio.com'},
+                        {name: 'zedsss', email: 'ishout@egeio.com'},
+                        {name: 'zxdgs333', email: 'ishout@egeio.com'},
+                        {name: 'zesdfsf', email: 'ishout@egeio.com'},
+                        {name: 'huangwei', email: 'ishout@egeio.com'},
+                        {name: 'leixin', email: 'leixin@gmail.com'},
+                        {name: 'yuancheng', email: 'cy@egeio.com'},
+                        {name: 'chaoliu', email: 'liuchao@egeio.com'},
+                        {name: 'anhao', email: 'anhao@egeio.com'}
+                    ],
+                    itemTpl: '{{name}} ({{email}})'
                 })
 
             });

@@ -85,51 +85,53 @@
         }
 
         // collision handle
-        var docST = $(document).scrollTop(), docSL = $(document).scrollLeft(),
-            docH = $(document).height(), docW = $(document).width(),
-            winH = $(window).height(), winW = $(window).width();
+        if(collision !== 'none'){
+            var docST = $(document).scrollTop(), docSL = $(document).scrollLeft(),
+                docH = $(document).height(), docW = $(document).width(),
+                winH = $(window).height(), winW = $(window).width();
 
-        if(posTop < docST){
-            if(!basePos || basePos.top > docST){
+            if(posTop < docST){
+                if(!basePos || basePos.top > docST){
+                    if(collision === 'fit'){
+                        posTop = docST;
+                    } else if(collision === 'flip'){
+                        posTop = posTop + pinHeight + baseHeight;
+                        if(posTop + pinHeight > docH){
+                            posTop = docH - pinHeight;
+                        }
+                    }
+                }
+            } else if(posTop + pinHeight - docST > winH){
                 if(collision === 'fit'){
-                    posTop = docST;
+                    posTop = winH + docST - pinHeight;
                 } else if(collision === 'flip'){
-                    posTop = posTop + pinHeight + baseHeight;
-                    if(posTop + pinHeight > docH){
-                        posTop = docH - pinHeight;
+                    // +1: fix firefox bug
+                    posTop = posTop - pinHeight - baseHeight + 1;
+                    if(posTop < 0){
+                        posTop = 0;
                     }
                 }
             }
-        } else if(posTop + pinHeight - docST > winH){
-            if(collision === 'fit'){
-                posTop = winH + docST - pinHeight;
-            } else if(collision === 'flip'){
-                // +1: fix firefox bug
-                posTop = posTop - pinHeight - baseHeight + 1;
-                if(posTop < 0){
-                    posTop = 0;
-                }
-            }
-        }
 
-        if(posLeft < docSL){
-            if(!basePos || basePos.left > docSL){
-                if(collision === 'fit'){
-                    posLeft = docSL;
-                } else if(collision === 'flip'){
-                    posLeft = posLeft + pinWidth + baseWidth;
-                    if(posLeft + pinWidth > docW){
-                        posLeft = docW - pinWidth;
+            if(posLeft < docSL){
+                if(!basePos || basePos.left > docSL){
+                    if(collision === 'fit'){
+                        posLeft = docSL;
+                    } else if(collision === 'flip'){
+                        posLeft = posLeft + pinWidth + baseWidth;
+                        if(posLeft + pinWidth > docW){
+                            posLeft = docW - pinWidth;
+                        }
                     }
                 }
-            }
-        } else if(posLeft + pinWidth - docSL > winW){
-            if(collision === 'fit'){
-                posLeft = winW + docSL - pinWidth;
-            } else if(collision === 'flip'){
-                posLeft = posLeft - pinWidth - baseWidth;
-                if(posLeft < 0){
-                    posLeft = 0;
+            } else if(posLeft + pinWidth - docSL > winW){
+                if(collision === 'fit'){
+                    posLeft = winW + docSL - pinWidth;
+                } else if(collision === 'flip'){
+                    posLeft = posLeft - pinWidth - baseWidth;
+                    if(posLeft < 0){
+                        posLeft = 0;
+                    }
                 }
             }
         }
@@ -189,14 +191,20 @@
             return this;
         },
         trigger: function(event, method){
+            // TODO: pass data to handle
+            var data;
+            if(event !== 'before' && event !== 'after'){
+                data = method;
+                method = 'on';
+            }
             method = method || 'on';
             if(this._widgetEvents && this._widgetEvents[event] && this._widgetEvents[event][method]){
                 var handlers = this._widgetEvents[event][method];
                 for (var i = 0; i < handlers.length; i++) {
                     if ($.isFunction(handlers[i])) {
-                        handlers[i].call(this)
+                        handlers[i].call(this, data)
                     } else {
-                        this[handlers[i]]()
+                        this[handlers[i]](data)
                     }
                 }
             }
@@ -250,6 +258,21 @@
         },
         rendered: false,
         setup: function(){
+            var defaults = {
+                parentNode: document.body
+                // other initial options: element, template, id , className
+            }
+            var options = this.options = $.extend(defaults, this.options);
+
+            this._isTemplate = !!options.template;
+            this.$element = $$(this.$element || options.element || options.template);
+            if(!this.$element[0]){
+                throw new Error('Overlay Error: element or template not specified');
+            }
+            this.element = this.$element[0];
+            options.id && this.$element.attr('id', options.id);
+            options.className && this.$element.addClass(options.className);
+
             this.cid = uniqueCid();
             cachedInstances[this.cid] = this;
         },
@@ -328,11 +351,8 @@
      * ====================== */
     var Overlay = Widget.extend({
         setup: function(){
-            Overlay.superClass.setup.call(this);
-
             var defaults = {
-                // element, template, width, height, id , className, trigger, hideBlur, align
-                parentNode: document.body,
+                // width, height, trigger, hideBlur, align
                 position: 'absolute',
                 top: 0,
                 left: 0,
@@ -341,14 +361,8 @@
             }
             var options = this.options = $.extend(defaults, this.options);
 
-            this._isTemplate = !!options.template;
-            this.$element = $$(this.$element || options.element || options.template);
-            if(!this.$element[0]){
-                throw new Error('Overlay Error: element or template not specified');
-            }
-            this.element = this.$element[0];
-            options.id && this.$element.attr('id', options.id);
-            options.className && this.$element.addClass(options.className)
+            Overlay.superClass.setup.call(this);
+
             this.$element.css({
                 'position': options.position,
                 'z-index': options.zIndex,
@@ -759,13 +773,16 @@
 
         setup: function(){
             var defaults = {
-                align: {pos: 'bottom'},
+                align: {pos: 'bottom', collision: 'none'},
                 classPrefix: 'egeui-select',
                 selectTpl: this._selectTpl,
+                itemSelectedClass: 'item-selected',
                 itemTpl: '',
+                selectFirst: false,
+                submitOnEnter: false,
                 delay: 200
             };
-            var options = this.options = $.extend(defaults, this.options);
+            var options = this.options = $.extend(true, defaults, this.options);
 
             this.$element = $(this._parseTpl(options.selectTpl));
             this._itemWrapTpl = this._parseTpl(this._itemWrapTpl);
@@ -775,54 +792,87 @@
 
             this._bindTrigger();
 
-            this.dataSource = new DataSource(options.dataSource);
-            if(this.dataSource.type !== 'url'){
-                this._initFilter();
-                this.sourceData = normalize(options.dataSource);
-            }
+            this.sourceData = normalize(this._initDataSource(options.dataSource))
+            this._initFilter();
 
+            if(options.selectFirst){
+                this.after('show', function(){
+                    this.selectedIndex = 0;
+                    this.trigger('indexChange');
+                });
+            }
             this.after('hide', function(){
                 if(this.items){
                     this.lastIndex = this.selectedIndex;
                     this.selectedIndex =  -1;
                     this.trigger('indexChange');
                 }
-            }).on('indexChange', this._handleItemHover);
+            });
+            this.on('indexChange', this._handleItemHover)
+            .on('itemSelected', function(){
+                this.selected = true;
+                var selectedData = this.sourceData[this.data[this.selectedIndex].index];
+                if(selectedData.value){
+                    if(lteIE9) this.slient = true;
+                    $$(options.trigger).val(selectedData.value);
+                    this.query = selectedData.value;
+                } else if(options.dataSource.data){
+                    this.trigger('selected', options.dataSource.data[this.data[this.selectedIndex].index])
+                }
+                this.hide();
+            })
 
-            this.$('[data-role=items]').on('mouseenter', 'li', wrapFn(function(ev){
+            this.$('[data-role=items]').on('mouseenter.autocomplete', 'li', wrapFn(function(ev){
+                if(!this.allowMouseMove){
+                    this.allowMouseMove = true;
+                    return;
+                }
                 this.lastIndex = this.selectedIndex;
                 this.selectedIndex = this.items.index(ev.currentTarget);
                 this.trigger('indexChange');
+            }, this)).on('mousedown.autocomplete', 'li', wrapFn(function(e){
+                if (lteIE9) {
+                    var trigger = $$(this.options.trigger)[0];
+                    trigger.onbeforedeactivate = function () {
+                        window.event.returnValue = false;
+                        trigger.onbeforedeactivate = null;
+                    };
+                }
+                e.preventDefault();
+                this.trigger('itemSelected')
             }, this));
         },
         show: function(){
             if(this.visible) return;
             if(this._isEmpty()) return;
             AutoComplete.superClass.show.call(this);
+
+            this.$element.scrollTop(0);
+            this._adjustMaxHeight();
         },
-        // hide: function(){
-        //     this.items[this.selectedIndex].removeClass('selected')
-        //     this.selectedIndex =  -1;
-        //     AutoComplete.superClass.hide.call(this);
-        // },
+        reset: function(){
+            if(lteIE9) this.slient = true;
+            $$(this.options.trigger).val(this.query = '');
+            this._clear();
+            this.hide();
+        },
+
         query: '',
         lastIndex: -1,
         selectedIndex: -1,
-        doQuery: function(){
-
-            // console.log(this.query)
+        allowMouseMove: true,
+        queryData: function(){
             if(this.query === ''){
                 this.data = [];
                 return;
             }
-
             if(this.sourceData){
                 this._filterData(this.sourceData)
             }
-
             this._fillItems();
-        },
 
+            this.show()
+        },
         _fillItems: function(){
             var items = '';
             $.each(this.data, wrapFn(function(index, item){
@@ -831,7 +881,6 @@
             }, this))
             this.items = this.$('[data-role=items]').html(items).children();
         },
-
         _renderItem: function (item){
             if(item.value && !$.isPlainObject(item.value)){
                 return highlight(item.value, item.hlIndex);
@@ -839,15 +888,33 @@
                 return parseItem(this.options.itemTpl, item)
             }
         },
-
         _filterData: function(data){
             if(this.filter){
                 data = this.filter(data, this.query);
-                // console.log(data)
                 this.data = data;
             }
         },
+        _initDataSource: function(dataSource){
+            if($.isArray(dataSource)){
+                return dataSource;
+            }
 
+            if(dataSource.data && $.isArray(dataSource.data) && dataSource.locator){
+                var data = dataSource.data;
+                var locator = dataSource.locator;
+                var l = data.length;
+                var result = [];
+                // console.log(data)
+                for (var i = 0; i < l ; i++) {
+                    var item = {};
+                    for(var f = 0; f < locator.length; f++){
+                        item[locator[f]] = data[i][locator[f]]
+                    }
+                    result[i] = item;
+                }
+                return result;
+            }
+        },
         _initFilter: function(){
             var filter = this.options.filter || 'startsWith';
             if($.isFunction(filter)){
@@ -859,7 +926,6 @@
                 throw new Error('Specified filter is not existed.')
             }
         },
-
         // bind event
         _bindTrigger: function(){
             var trigger = $$(this.options.trigger)[0];
@@ -869,6 +935,11 @@
 
             var queryTimer;
             $(trigger).on('textchange.autocomplete', function(ev){
+                if(lteIE9 && that.slient){
+                    that.slient = false;
+                    return;
+                }
+
                 var query_new = $(ev.target).val().replace(/^\s*/, '');
                 if(compare(that.query, query_new)) return;
                 that.query = query_new;
@@ -877,13 +948,13 @@
                 queryTimer = setTimeout(function(){
                     that._clear();
                     that.hide();
-                    that.doQuery();
-                    that.show()
+                    that.queryData();
 
                     queryTimer = null;
                 }, that.options.delay)
             }).on('keydown.autocomplete', wrapFn(this._handleKeydown, this))
             .on('keyDown keyUp', wrapFn(this._handleKeyDownUp, this))
+            .on('keyEnter', wrapFn(this._handleKeyEnter, this))
             .on('keyEsc', wrapFn(this.hide, this));
 
             acBindEvent('blur', trigger, function(){
@@ -898,9 +969,21 @@
                 $$(this.options.trigger).trigger(e.type = eventKey, e);
             }
         },
+        _handleKeyEnter: function(e){
+            this.items[this.selectedIndex] && this.trigger('itemSelected');
+            !this.options.submitOnEnter && e.preventDefault();
+        },
         _handleKeyDownUp: function(e){
+            if(this.selected){
+                this._clear();
+                this.queryData();
+                this.selected = false;
+            }
+
             if(!this.items) return;
+
             this.show();
+            this.allowMouseMove = false;
 
             this.lastIndex = this.selectedIndex;
 
@@ -916,10 +999,26 @@
                 this.selectedIndex = this.items.length - 1;
             }
             this.trigger('indexChange');
+
+            var row =  $(this.items[this.selectedIndex]);
+            if(!row[0]) return;
+            var rowTop = row.position().top;
+            var delta = rowTop + row.outerHeight() - this.$element.height();
+            if(delta > 0) {
+                this.$element.scrollTop(delta + this.$element.scrollTop())
+            } else if(rowTop < 0){
+                this.$element.scrollTop(Math.max(0, this.$element.scrollTop() + rowTop));
+            }
+        },
+
+        _adjustMaxHeight: function(){
+            var maxTop = $(window).height() + $(window).scrollTop() - this.$element.outerHeight();
+            var top = parseInt(this.$element.css('top'), 10);
+            this.$element.css('max-height', top > maxTop ? (Math.max(0, maxTop - top + this.$element.innerHeight()) + 'px') : '');
         },
         _handleItemHover: function(){
-            $(this.items[this.lastIndex]).removeClass('item-selected');
-            $(this.items[this.selectedIndex]).addClass('item-selected');
+            $(this.items[this.lastIndex]).removeClass(this.options.itemSelectedClass);
+            $(this.items[this.selectedIndex]).addClass(this.options.itemSelectedClass);
         },
         _isEmpty: function () {
             var data = this.data;
@@ -1011,10 +1110,10 @@
     }
 
     var specialKeyCodeMap = {
-        9: 'tab',
+        // 9: 'tab',
         27: 'esc',
-        37: 'left',
-        39: 'right',
+        // 37: 'left',
+        // 39: 'right',
         13: 'enter',
         38: 'up',
         40: 'down'
@@ -1056,7 +1155,7 @@
         } else {
             $(element).on("input", function(e) {
                 // if (element.nodeName !== "TEXTAREA") {
-                    $(element).trigger("textchange");
+                $(element).trigger("textchange");
                 // }
             });
         }
@@ -1068,12 +1167,70 @@
     }
 
 
+    /* Contacts WIDGET DEFINITION
+     * ====================== */
+    var ContactSelect = Widget.extend({
+        setup: function(){
+            Overlay.superClass.setup.call(this);
+            var defaults = {
+                inputTpl: '<input type="text">',
+            }
+            var options = this.options = $.extend(defaults, this.options);
+
+            ContactSelect.superClass.setup.call(this);
+
+            this.input = $(options.inputTpl).appendTo(this.element)
+            .css({
+                // 'width': this.$element.innerWidth(),
+                // 'height': this.$element.innerHeight(),
+                'border': 'none'
+            });
+
+            var that = this;
+            this.selector = new AutoComplete({
+                trigger: this.input,
+                selectFirst: options.selectFirst,
+                dataSource: options.data,
+                itemTpl: options.itemTpl,
+                align: {
+                    after: 'show'
+                }
+            }).on('selected', function(data){
+                this.reset();
+                that.trigger('itemSelected', data)
+            })
+
+            this.on('itemSelected', 'insertItem')
+
+            this.input.on('keydown.contactselect', function(e){
+                if(e.which === 8 && this.value === '' && that.items.length){
+                    that.items.pop().remove();
+                }
+            })
+
+            this.render();
+        },
+        items: [],
+        events: {
+            "click": function(){
+                this.input.focus()
+            }
+        },
+        'insertItem': function(data){
+            var insertItem = $('<span>' + data.name + '</span>').insertBefore(this.input);
+            this.items.push(insertItem);
+            this.trigger('add', data)
+        }
+    })
+
+
 
     var pub = {};
     pub.Overlay = Overlay;
     pub.Popup = Popup;
     pub.Dialog = Dialog;
     pub.AutoComplete = AutoComplete;
+    pub.ContactSelect = ContactSelect;
 
     return pub;
 }));

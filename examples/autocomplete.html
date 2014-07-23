@@ -9,6 +9,9 @@
                 margin:0;
                 padding:0;
             }
+            body {
+                text-align: left;
+            }
 
             ol, ul {
                 list-style:none;
@@ -23,8 +26,11 @@
             }
             .egeui-select {
                 border: 1px solid #ccc;
+                max-height: 200px;
+                overflow: auto;
                 /*height: 200px;*/
-                /*width: 260px;*/
+                width: 260px;
+                background-color: #fff;
             }
             .egeui-select ul li {
                 padding: 5px;
@@ -34,6 +40,30 @@
                 background-color: #f0f0f0;
                 cursor: default;
             }
+
+            #contacts {
+                border: 1px solid #ccc;
+                margin-top: 200px;
+                margin-left: 100px;
+                min-height: 40px;
+                width: 400px;
+                text-align: left;
+                padding: 5px 10px;
+                cursor: text;
+            }
+            #contacts input {
+                list-style: 20px;
+                height: 20px;
+                width: 30px;
+            }
+            #contacts span {
+                padding: 5px 10px;
+                background-color: #eef8f9;
+                color: #058a99;
+                border-radius: 10px;
+                display: inline-block;
+                margin: 5px 8px 0 0;
+            }
         </style>
     </head>
     <body>
@@ -42,36 +72,85 @@
 
             <input type="text" id="search" autocomplete="off">
 
+            <div id="contacts"></div>
         </div>
+
 
         <script type="text/javascript" src="jquery-1.11.1.min.js"></script>
         <script type="text/javascript" src="../src/egeui.js"></script>
         <script type="text/javascript">
             $(function() {
-                var pop = new egeui.AutoComplete({
+                var data = [
+                    {name: 'huangwenping', email: 'xsbear@egeio.com', id: 124},
+                    {name: 'huangwei', email: 'ishout@egeio.com', id: 122},
+                    {name: 'huaxxx', email: 'ishout@egeio.com', id: 123},
+                    {name: 'hetx', email: 'ishout@egeio.com', id: 121},
+                    {name: 'zx', email: 'ishout@egeio.com', id: 125},
+                    {name: 'zedsd', email: 'ishout@egeio.com', id: 126},
+                    {name: 'zedxxx', email: 'ishout@egeio.com', id: 127},
+                    {name: 'zed333', email: 'ishout@egeio.com', id: 128},
+                    {name: 'zedsss', email: 'ishout@egeio.com', id: 129},
+                    {name: 'zxdgs333', email: 'ishout@egeio.com', id: 131},
+                    {name: 'zxdgs333', email: 'ishout@egeio.com', id: 130},
+                    {name: 'z9282s333', email: 'ishout@egeio.com', id: 132},
+                    {name: 'z92482s333', email: 'ishout@egeio.com', id: 133},
+                    {name: 'z92582s333', email: 'ishout@egeio.com'},
+                    {name: 'z92282s333', email: 'ishout@egeio.com'},
+                    {name: 'zxd3gs333', email: 'ishout@egeio.com'},
+                    {name: 'zxsds3333', email: 'ishout@egeio.com'},
+                    {name: 'zxs2ds333', email: 'ishout@egeio.com'},
+                    {name: 'zxsds333', email: 'ishout@egeio.com'},
+                    {name: 'zxsds333', email: 'ishout@egeio.com'},
+                    {name: 'zxd2gs333', email: 'ishout@egeio.com'},
+                    {name: 'zxd091133', email: 'ishout@egeio.com'},
+                    {name: 'zxd091133', email: 'ishout@egeio.com'},
+                    {name: 'zxd091133', email: 'ishout@egeio.com'},
+                    {name: 'zxd091133', email: 'ishout@egeio.com'},
+                    {name: 'zx2d091133', email: 'ishout@egeio.com'},
+                    {name: 'zxdgs333', email: 'ishout@egeio.com'},
+                    {name: 'zxdgs333', email: 'ishout@egeio.com'},
+                    {name: 'zx111333', email: 'ishout@egeio.com'},
+                    {name: 'zx1211333', email: 'ishout@egeio.com'},
+                    {name: 'zxdgs333', email: 'ishout@egeio.com'},
+                    {name: 'z0998333', email: 'ishout@egeio.com'},
+                    {name: 'z0998333', email: 'ishout@egeio.com'},
+                    {name: 'z09928333', email: 'ishout@egeio.com'},
+                    {name: 'z0998333', email: 'ishout@egeio.com'},
+                    {name: 'z09982333', email: 'ishout@egeio.com'},
+                    {name: 'z09928333', email: 'ishout@egeio.com'},
+                    {name: 'zesdfsf', email: 'ishout@egeio.com'},
+                    {name: 'huangwei', email: 'ishout@egeio.com'},
+                    {name: 'leixin', email: 'leixin@gmail.com'},
+                    {name: 'yuancheng', email: 'cy@egeio.com'},
+                    {name: 'chaoliu', email: 'liuchao@egeio.com'},
+                    {name: 'anhao', email: 'anhao@egeio.com'}
+                ];
+
+                var ac = new egeui.AutoComplete({
                     trigger: '#search',
-                    // dataSource: ['abc', 'bde', 'acc', 'sss'],
-                    dataSource: [
-                        {name: 'huangwenping', email: 'xsbear@egeio.com'},
-                        {name: 'huangwei', email: 'ishout@egeio.com'},
-                        {name: 'huaxxx', email: 'ishout@egeio.com'},
-                        {name: 'hetx', email: 'ishout@egeio.com'},
-                        {name: 'zx', email: 'ishout@egeio.com'},
-                        {name: 'zedsd', email: 'ishout@egeio.com'},
-                        {name: 'zedxxx', email: 'ishout@egeio.com'},
-                        {name: 'zed333', email: 'ishout@egeio.com'},
-                        {name: 'zedsss', email: 'ishout@egeio.com'},
-                        {name: 'zxdgs333', email: 'ishout@egeio.com'},
-                        {name: 'zesdfsf', email: 'ishout@egeio.com'},
-                        {name: 'huangwei', email: 'ishout@egeio.com'},
-                        {name: 'leixin', email: 'leixin@gmail.com'},
-                        {name: 'yuancheng', email: 'cy@egeio.com'},
-                        {name: 'chaoliu', email: 'liuchao@egeio.com'},
-                        {name: 'anhao', email: 'anhao@egeio.com'}
-                    ],
+                    selectFirst: true,
+                    // dataSource: ['abc', 'bde', 'acc', 'sss', 'acee', 'atg', 'aax', 's3x', 'ss345'],
+                    dataSource: {
+                        data: data,
+                        locator: ['name', 'email']
+                    },
                     itemTpl: '{{name}} ({{email}})'
                 })
+                ac.on('selected', function(data){
+                    console.log(data)
+                })
 
+                var contacts = new egeui.ContactSelect({
+                    selectFirst: true,
+                    element: '#contacts',
+                    data: {
+                        data: data,
+                        locator: ['name', 'email']
+                    },
+                    itemTpl: '{{name}} ({{email}})'
+                }).on('add', function(data){
+                    // console.log(data)
+                })
             });
         </script>
     </body>

@@ -50,11 +50,22 @@
                 text-align: left;
                 padding: 5px 10px;
                 cursor: text;
+                display: inline-block;
+            }
+            #showall {
+                display: inline-block;
+                width: 40px;
+                height: 40px;
+                border: 1px solid #ccc;
+                padding: 5px 10px;
+            }
+            #contacts .input-wrap {
+                float: left;
             }
             #contacts input {
                 list-style: 20px;
                 height: 20px;
-                width: 30px;
+                /*width: 100%;*/
             }
             #contacts span {
                 padding: 5px 10px;
@@ -64,6 +75,18 @@
                 display: inline-block;
                 margin: 5px 8px 0 0;
             }
+            #contacts span i {
+                display: inline-block;
+                margin-left: 5px;
+                cursor: pointer;
+            }
+
+            textarea {
+                width: 500px;
+                height: 40px;
+                border: 1px solid #eee;
+                padding: 5px;
+            }
         </style>
     </head>
     <body>
@@ -72,7 +95,9 @@
 
             <input type="text" id="search" autocomplete="off">
 
-            <div id="contacts"></div>
+            <textarea id="comments"></textarea>
+
+            <div id="contacts"></div><div id="showall">all</div>
         </div>
 
 
@@ -90,34 +115,34 @@
                     {name: 'zedxxx', email: 'ishout@egeio.com', id: 127},
                     {name: 'zed333', email: 'ishout@egeio.com', id: 128},
                     {name: 'zedsss', email: 'ishout@egeio.com', id: 129},
-                    {name: 'zxdgs333', email: 'ishout@egeio.com', id: 131},
-                    {name: 'zxdgs333', email: 'ishout@egeio.com', id: 130},
+                    {name: 'ggs333', email: 'ishout@egeio.com', id: 131},
+                    {name: 'ggs333', email: 'ishout@egeio.com', id: 130},
                     {name: 'z9282s333', email: 'ishout@egeio.com', id: 132},
                     {name: 'z92482s333', email: 'ishout@egeio.com', id: 133},
                     {name: 'z92582s333', email: 'ishout@egeio.com'},
                     {name: 'z92282s333', email: 'ishout@egeio.com'},
-                    {name: 'zxd3gs333', email: 'ishout@egeio.com'},
+                    {name: 'g3gs333', email: 'ishout@egeio.com'},
                     {name: 'zxsds3333', email: 'ishout@egeio.com'},
                     {name: 'zxs2ds333', email: 'ishout@egeio.com'},
                     {name: 'zxsds333', email: 'ishout@egeio.com'},
                     {name: 'zxsds333', email: 'ishout@egeio.com'},
                     {name: 'zxd2gs333', email: 'ishout@egeio.com'},
-                    {name: 'zxd091133', email: 'ishout@egeio.com'},
-                    {name: 'zxd091133', email: 'ishout@egeio.com'},
-                    {name: 'zxd091133', email: 'ishout@egeio.com'},
-                    {name: 'zxd091133', email: 'ishout@egeio.com'},
+                    {name: 'g091133', email: 'ishout@egeio.com'},
+                    {name: 'g091133', email: 'ishout@egeio.com'},
+                    {name: 'g091133', email: 'ishout@egeio.com'},
+                    {name: 'g091133', email: 'ishout@egeio.com'},
                     {name: 'zx2d091133', email: 'ishout@egeio.com'},
-                    {name: 'zxdgs333', email: 'ishout@egeio.com'},
-                    {name: 'zxdgs333', email: 'ishout@egeio.com'},
+                    {name: 'ggs333', email: 'ishout@egeio.com'},
+                    {name: 'ggs333', email: 'ishout@egeio.com'},
                     {name: 'zx111333', email: 'ishout@egeio.com'},
                     {name: 'zx1211333', email: 'ishout@egeio.com'},
-                    {name: 'zxdgs333', email: 'ishout@egeio.com'},
-                    {name: 'z0998333', email: 'ishout@egeio.com'},
-                    {name: 'z0998333', email: 'ishout@egeio.com'},
-                    {name: 'z09928333', email: 'ishout@egeio.com'},
-                    {name: 'z0998333', email: 'ishout@egeio.com'},
-                    {name: 'z09982333', email: 'ishout@egeio.com'},
-                    {name: 'z09928333', email: 'ishout@egeio.com'},
+                    {name: 'ggs333', email: 'ishout@egeio.com'},
+                    {name: 'x98333', email: 'ishout@egeio.com'},
+                    {name: 'x98333', email: 'ishout@egeio.com'},
+                    {name: 'x928333', email: 'ishout@egeio.com'},
+                    {name: 'x98333', email: 'ishout@egeio.com'},
+                    {name: 'x982333', email: 'ishout@egeio.com'},
+                    {name: 'x928333', email: 'ishout@egeio.com'},
                     {name: 'zesdfsf', email: 'ishout@egeio.com'},
                     {name: 'huangwei', email: 'ishout@egeio.com'},
                     {name: 'leixin', email: 'leixin@gmail.com'},
@@ -129,11 +154,11 @@
                 var ac = new egeui.AutoComplete({
                     trigger: '#search',
                     selectFirst: true,
-                    // dataSource: ['abc', 'bde', 'acc', 'sss', 'acee', 'atg', 'aax', 's3x', 'ss345'],
-                    dataSource: {
-                        data: data,
-                        locator: ['name', 'email']
-                    },
+                    dataSource: ['abc', 'bde', 'acc', 'sss', 'acee', 'atg', 'aax', 's3x', 'ss345'],
+                    // dataSource: {
+                    //     data: data,
+                    //     locator: ['name', 'email']
+                    // },
                     itemTpl: '{{name}} ({{email}})'
                 })
                 ac.on('selected', function(data){
@@ -145,11 +170,16 @@
                     element: '#contacts',
                     data: {
                         data: data,
-                        locator: ['name', 'email']
+                        fields: ['name', 'email']
                     },
-                    itemTpl: '{{name}} ({{email}})'
+                    contactTpl: '<span>{{name}}</span>',
+                    itemTpl: '{{name}} ({{email}})',
+                    showAllTrigger: '#showall'
                 }).on('add', function(data){
-                    // console.log(data)
+                    console.log(data);
+                }).on('remove', function(data){
+                    console.log(this.contacts)
+                    console.log(data)
                 })
             });
         </script>

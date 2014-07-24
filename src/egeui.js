@@ -12,6 +12,31 @@
     }
 }(this, function($){
 
+    if (!Array.prototype.indexOf) {
+        Array.prototype.indexOf = function(searchElement, fromIndex) {
+            if (this === undefined || this === null) {
+                throw new TypeError('"this" is null or not defined');
+            }
+            var length = this.length >>> 0; // Hack to convert object.length to a UInt32
+            fromIndex = +fromIndex || 0;
+            if (Math.abs(fromIndex) === Infinity) {
+                fromIndex = 0;
+            }
+            if (fromIndex < 0) {
+                fromIndex += length;
+                if (fromIndex < 0) {
+                    fromIndex = 0;
+                }
+            }
+            for (; fromIndex < length; fromIndex++) {
+                if (this[fromIndex] === searchElement) {
+                    return fromIndex;
+                }
+            }
+            return -1;
+        };
+    }
+
     var $$ = function(obj) {
         return obj instanceof $ ? obj : $(obj)
     };
@@ -264,7 +289,7 @@
             }
             var options = this.options = $.extend(defaults, this.options);
 
-            this._isTemplate = !!options.template;
+            this._isTemplate = !options.element;
             this.$element = $$(this.$element || options.element || options.template);
             if(!this.$element[0]){
                 throw new Error('Overlay Error: element or template not specified');
@@ -786,7 +811,7 @@
 
             this.$element = $(this._parseTpl(options.selectTpl));
             this._itemWrapTpl = this._parseTpl(this._itemWrapTpl);
-            options.align.elem = options.trigger;
+            options.align.elem = options.align.elem || options.trigger;
 
             AutoComplete.superClass.setup.call(this);
 
@@ -811,15 +836,16 @@
             this.on('indexChange', this._handleItemHover)
             .on('itemSelected', function(){
                 this.selected = true;
-                var selectedData = this.sourceData[this.data[this.selectedIndex].index];
+                var selectedIndex = this.data[this.selectedIndex].index;
+                var selectedData = this.sourceData[selectedIndex];
+                this.hide();
                 if(selectedData.value){
                     if(lteIE9) this.slient = true;
                     $$(options.trigger).val(selectedData.value);
                     this.query = selectedData.value;
                 } else if(options.dataSource.data){
-                    this.trigger('selected', options.dataSource.data[this.data[this.selectedIndex].index])
+                    this.trigger('selected', options.dataSource.data[selectedIndex])
                 }
-                this.hide();
             })
 
             this.$('[data-role=items]').on('mouseenter.autocomplete', 'li', wrapFn(function(ev){
@@ -856,13 +882,21 @@
             this._clear();
             this.hide();
         },
+        destroy: function(){
+            this.sourceData = null;
+            this.dataSource = null;
+            this.data = null;
+            $$(this.options.trigger).off();
+            this._clear();
+            AutoComplete.superClass.destroy.call(this);
+        },
 
         query: '',
         lastIndex: -1,
         selectedIndex: -1,
         allowMouseMove: true,
-        queryData: function(){
-            if(this.query === ''){
+        queryData: function(query){
+            if(query === undefined && this.query === ''){
                 this.data = [];
                 return;
             }
@@ -899,16 +933,16 @@
                 return dataSource;
             }
 
-            if(dataSource.data && $.isArray(dataSource.data) && dataSource.locator){
+            if(dataSource.data && $.isArray(dataSource.data) && dataSource.fields){
                 var data = dataSource.data;
-                var locator = dataSource.locator;
+                var fields = dataSource.fields;
                 var l = data.length;
                 var result = [];
                 // console.log(data)
                 for (var i = 0; i < l ; i++) {
                     var item = {};
-                    for(var f = 0; f < locator.length; f++){
-                        item[locator[f]] = data[i][locator[f]]
+                    for(var f = 0; f < fields.length; f++){
+                        item[fields[f]] = data[i][fields[f]]
                     }
                     result[i] = item;
                 }
@@ -1163,7 +1197,7 @@
     function wrapFn(fn, context) {
         return function () {
             fn.apply(context, arguments);
-        };
+        }
     }
 
 
@@ -1174,17 +1208,18 @@
             Overlay.superClass.setup.call(this);
             var defaults = {
                 inputTpl: '<input type="text">',
+                removeTpl: '<i data-role="remove">x</i>'
             }
             var options = this.options = $.extend(defaults, this.options);
+            if(!options.contactTpl){
+                throw new Error('ContactSelect Error: contactTpl not specified');
+            }
 
             ContactSelect.superClass.setup.call(this);
 
-            this.input = $(options.inputTpl).appendTo(this.element)
-            .css({
-                // 'width': this.$element.innerWidth(),
-                // 'height': this.$element.innerHeight(),
-                'border': 'none'
-            });
+            this.input = $(options.inputTpl).appendTo(this.element).css('border', 'none');
+
+            this.adjustInputWidth();
 
             var that = this;
             this.selector = new AutoComplete({
@@ -1192,37 +1227,92 @@
                 selectFirst: options.selectFirst,
                 dataSource: options.data,
                 itemTpl: options.itemTpl,
+                zIndex: 9999,
                 align: {
+                    elem: this.$element,
                     after: 'show'
                 }
             }).on('selected', function(data){
                 this.reset();
-                that.trigger('itemSelected', data)
-            })
-
-            this.on('itemSelected', 'insertItem')
+                that.insertItem(data);
+            });
 
             this.input.on('keydown.contactselect', function(e){
                 if(e.which === 8 && this.value === '' && that.items.length){
-                    that.items.pop().remove();
+                    that.removeItem(that.items.length - 1)
                 }
             })
 
+            if(options.showAllTrigger){
+                $$(options.showAllTrigger).click(function(){
+                    that.selector.queryData('');
+                    that.input.focus()
+                })
+            }
+
             this.render();
         },
+        contacts: [],
+        // TODO: public private diff
         items: [],
         events: {
             "click": function(){
                 this.input.focus()
-            }
+            },
+            "click [data-role='remove']": "removeItem"
+        },
+        destroy: function(){
+            this.selector.destroy();
+            this.input.remove();
+            delete this.items;
+            delete this.contacts;
+            ContactSelect.superClass.destroy.call(this);
         },
         'insertItem': function(data){
-            var insertItem = $('<span>' + data.name + '</span>').insertBefore(this.input);
-            this.items.push(insertItem);
+            if(this.contacts.indexOf(data) > -1){
+                return;
+            }
+
+            var re = /(.*?)\{\{([\w\-]+)\}\}(.*?)/g;
+            var contactTpl = this.options.contactTpl.replace(re, function(match, p1, p2, p3){
+                return  p1 + data[p2] + p3;
+            })
+            var insertItem = $(contactTpl).insertBefore(this.input);
+            if(this.options.removeTpl){
+                $(this.options.removeTpl).appendTo(insertItem);
+            }
+            this.items.push(insertItem[0]);
+            this.adjustInputWidth();
             this.trigger('add', data)
+            this.contacts.push(data);
+        },
+        'removeItem': function(e){
+            var index, item;
+            if($.isNumeric(e)){
+                index = e;
+                item = this.items[index];
+            } else {
+                item = $(e.target).parent()[0];
+                index = this.items.indexOf(item);
+            }
+            var contact = this.contacts[index];
+            this.items.splice(index, 1);
+            this.contacts.splice(index, 1);
+            $(item).remove();
+            this.adjustInputWidth();
+            this.trigger('remove', index);
+        },
+        'adjustInputWidth': function(){
+            var wrapWidth = this.$element.width();
+            var inputWidth = wrapWidth;
+            if(this.items.length){
+                var item = $(this.items.slice(-1)[0]);
+                inputWidth = wrapWidth - item.offset().left + this.$element.offset().left - item.outerWidth() - 10;
+                inputWidth = Math.max(30, inputWidth);
+            }
+            this.input.css('width', inputWidth)
         }
     })
-
 
 
     var pub = {};

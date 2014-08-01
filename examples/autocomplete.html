@@ -95,6 +95,8 @@
 
             <input type="text" id="search" autocomplete="off">
 
+            search: <input type="text" id="url_search" autocomplete="off">
+
             <textarea id="comments"></textarea>
 
             <div id="contacts"></div><div id="showall">all</div>
@@ -154,6 +156,7 @@
                 var ac = new egeui.AutoComplete({
                     trigger: '#search',
                     selectFirst: true,
+                    filter: 'stringMatch',
                     dataSource: ['abc', 'bde', 'acc', 'sss', 'acee', 'atg', 'aax', 's3x', 'ss345'],
                     // dataSource: {
                     //     data: data,
@@ -165,6 +168,15 @@
                     console.log(data)
                 })
 
+                var urlsearch = new egeui.AutoComplete({
+                    trigger: '#url_search',
+                    selectFirst: true,
+                    filter: 'stringMatch',
+                    dataSource: 'data.json',
+                    locator: 'data'
+                })
+
+
                 var contacts = new egeui.ContactSelect({
                     selectFirst: true,
                     element: '#contacts',
@@ -174,6 +186,7 @@
                     },
                     contactTpl: '<span>{{name}}</span>',
                     itemTpl: '{{name}} ({{email}})',
+                    filter: 'stringMatch',
                     showAllTrigger: '#showall'
                 }).on('add', function(data){
                     console.log(data);

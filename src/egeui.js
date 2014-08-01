@@ -210,34 +210,44 @@
     * ====================== */
     var Base = function(){}
     Base.prototype = {
-        on: function(event, fn){
+        on: function(event, fn, context){
             var events = this._getEvents(event, 'on');
-            events.push(fn);
+            events.push([fn, context || this]);
             return this;
         },
-        trigger: function(event, method){
-            // TODO: pass data to handle
-            var data;
-            if(event !== 'before' && event !== 'after'){
-                data = method;
-                method = 'on';
+        before: function(event, fn, context){
+            var events = this._getEvents(event, 'before');
+            events.push([fn, context || this]);
+            return this;
+        },
+        after: function(event, fn, context){
+            var events = this._getEvents(event, 'after');
+            events.push([fn, context || this]);
+            return this;
+        },
+        trigger: function(event){
+            var type = 'on';
+            var args = Array.prototype.slice.call(arguments, 1);
+            if(event === 'before' || event === 'after'){
+                type = event;
+                event = arguments[1];
+                args = Array.prototype.slice.call(arguments, 2);
             }
-            method = method || 'on';
-            if(this._widgetEvents && this._widgetEvents[event] && this._widgetEvents[event][method]){
-                var handlers = this._widgetEvents[event][method];
+            if(this._widgetEvents && this._widgetEvents[type] && this._widgetEvents[type][event]){
+                var handlers = this._widgetEvents[type][event];
                 for (var i = 0; i < handlers.length; i++) {
-                    if ($.isFunction(handlers[i])) {
-                        handlers[i].call(this, data)
-                    } else {
-                        this[handlers[i]](data)
+                    if ($.isFunction(handlers[i][0])) {
+                        handlers[i][0].apply(handlers[i][1], args);
+                    } else if(isString(handlers[i])) {
+                        this[handlers[i][0]].apply(handlers[i][1], args);
                     }
                 }
             }
         },
-        _getEvents: function(event, method){
+        _getEvents: function(event, type){
             this._widgetEvents = this._widgetEvents || {};
-            var events = this._widgetEvents[event] || (this._widgetEvents[event] = {});
-            return events[method] || (events[method] = []);
+            var events = this._widgetEvents[type] || (this._widgetEvents[type] = {});
+            return events[event] || (events[event] = []);
         },
     }
 
@@ -314,16 +324,6 @@
 
             this._delegateEvents();
 
-            return this;
-        },
-        before: function(method, fn){
-            var events = this._getEvents('before', method);
-            events.push(fn);
-            return this;
-        },
-        after: function(method, fn){
-            var events = this._getEvents('after', method);
-            events.push(fn);
             return this;
         },
         destroy: function(){
@@ -756,37 +756,212 @@
     })
 
 
-    var DataSource = function(source){
-        this.source = source;
-        this.init();
-    }
-    DataSource.prototype = {
+    /* DataSource CLASS DEFINITION
+     * ====================== */
+    var DataSource = Base.extend({
+        constructor: function(options){
+            this.source = options.source;
+            this.filter = options.filter;
+            this.locator = options.locator;
+            this.valueField = options.valueField;
+            this.init();
+        },
         init: function(){
             if($.isArray(this.source)){
-                this.type = 'array'
+                this.type = 'array';
             } else if($.isFunction(this.source)){
-                this.type = 'function'
-            } else if ($.isPlainObject(source)) {
-                this.type = 'object';
-            } else {
+                this.type = 'function';
+            } else if ($.isPlainObject(this.source)) {
+                if(this.source.data && this.source.fields){
+                    this.type = 'array';
+                    this.search_fields = this.source.fields;
+                } else {
+                    this.type = 'object';
+                }
+            } else if(isString(this.source)) {
                 this.type = 'url';
             }
-        },
+            if(this.type !== 'url'){
+                this.filter = this.filter || 'startsWith';
+                if(!$.isFunction(this.filter)){
+                    this.filter = Filters[this.filter]
+                    if(!this.filter){
+                        throw new Error('Specified filter is not existed.')
+                    }
+                }
+                this._initDataSource()
+            }
 
-        getData: function(query, callback){
-            this['_get' + capitalize(this.type) + 'Data'](query, callback);
+            this.id = 0;
+            this.callbacks = [];
         },
+        getData: function(query){
+            this['_get' + capitalize(this.type) + 'Data'](query);
+        },
+        abort: function () {
+            this.callbacks = [];
+        },
+        _done: function (data) {
+            this.trigger('data', data);
+        },
+        _getArrayData: function(query){
+            var data = this.filter(this.data, query);
+            this._done(data)
+            return data;
+        },
+        _getUrlData: function(query){
+            var that = this,
+                options;
+            var obj = {
+                query: query ? encodeURIComponent(query) : '',
+                timestamp: new Date().getTime()
+            };
+            var url = this.source.replace(/\{\{(.*?)\}\}/g, function (all, match) {
+                return obj[match];
+            });
 
-        _getArrayData: function(){
-            // console.log(this.source)
-            return this.source;
-        }
+            var callbackId = 'callback_' + this.id++;
+            this.callbacks.push(callbackId);
+
+            if (/^(https?:\/\/)/.test(url)) {
+                options = {
+                    dataType: 'jsonp'
+                };
+            } else {
+                options = {
+                    dataType: 'json'
+                };
+            }
+            $.ajax(url, options).success(function (data) {
+                if(that.locator){
+                    data = data[that.locator];
+                }
+                if ($.inArray(callbackId, that.callbacks) > -1) {
+                    delete that.callbacks[callbackId];
+                    that._done(data);
+                }
+            }).error(function () {
+                if ($.inArray(callbackId, that.callbacks) > -1) {
+                    delete that.callbacks[callbackId];
+                    that._done({});
+                }
+            });
+        },
+        _initDataSource: function(dataSource){
+            if(this.type === 'array'){
+                this.data = this.source;
+                if(this.search_fields){
+                    this.source = this.source.data;
+                    var data = this.source;
+                    var fields = this.search_fields;
+                    var l = data.length;
+                    this.data = [];
+                    // console.log(data)
+                    for (var i = 0; i < l ; i++) {
+                        var item = {};
+                        for(var f = 0; f < fields.length; f++){
+                            item[fields[f]] = data[i][fields[f]]
+                        }
+                        this.data[i] = item;
+                    }
+                }
+                normalizeData(this.data);
+            }
+        },
+        _filters: {
+            'startsWith': function(data, search){
+                return filterData('startsWith', data, search)
+            },
+            'stringMatch':  function(data, search){
+                return filterData('stringMatch', data, search)
+            },
+        },
+    })
+
+    // 标准数据格式
+    // {
+    //     value: 'xxx' 或者 {'field1': {value: '123'}, 'field2': {value: 'xxx'}} 待匹配字段
+    //     hlIndex: [start, end] 高亮范围  filter 后返回
+    // }
+    function normalizeData(data) {
+        $.each(data, function (index, item) {
+            if (isString(item)) {
+                data[index] = {value: item};
+            } else if ($.isPlainObject(item)) {
+                for(var field in item){
+                    item[field] = {
+                        value: item[field]
+                    }
+                }
+            }
+        })
     }
 
-    function capitalize(str) {
-        return str.replace(/^([a-z])/, function (f, m) {
-            return m.toUpperCase();
-        });
+    var Filters = {
+        'startsWith': function(data, search){
+            var re = new RegExp('^' + escapeKeyword(search));
+            var result = [];
+            var l = search.length;
+            $.each(data, function(index, item){
+                var new_item = {};
+                var matched = false;
+                for(var field in item){
+                    if(!$.isPlainObject(item[field]) && field === 'value'){
+                        new_item.value = item.value;
+                        if(re.test(item.value)){
+                            new_item.hlIndex = [0, l];
+                            matched = true;
+                        }
+                    } else if($.isPlainObject(item[field])){
+                        new_item[field] = {
+                            value: item[field].value
+                        };
+                        if(re.test(item[field].value)){
+                            new_item[field].hlIndex = [0, l];
+                            matched = true;
+                        }
+                    }
+                }
+                if(matched){
+                    new_item.index = index;
+                    result.push(new_item);
+                }
+            })
+            return result;
+        },
+        'stringMatch': function(data, search){
+            var re = new RegExp(escapeKeyword(search));
+            var result = [];
+            var l = search.length, hl_start;
+            $.each(data, function(index, item){
+                var new_item = {};
+                var matched = false;
+                for(var field in item){
+                    if(!$.isPlainObject(item[field]) && field === 'value'){
+                        new_item.value = item.value;
+                        hl_start = item.value.search(re);
+                        if(hl_start > -1){
+                            new_item.hlIndex = [hl_start, l];
+                            matched = true;
+                        }
+                    } else if($.isPlainObject(item[field])){
+                        new_item[field] = {
+                            value: item[field].value
+                        };
+                        hl_start = item[field].value.search(re);
+                        if(hl_start > -1){
+                            new_item[field].hlIndex = [hl_start, l];
+                            matched = true;
+                        }
+                    }
+                }
+                if(matched){
+                    new_item.index = index;
+                    result.push(new_item);
+                }
+            })
+            return result;
+        }
     }
 
     var EVENT_NAMESPACE_AUTOCOMPLETE = '.egeui-autocomplete'
@@ -797,12 +972,12 @@
         _itemWrapTpl: '<li class="{{classPrefix}}-item" data-role="item">{{item}}</li>',
 
         setup: function(){
+            // other optiosn: themeClass itemTpl
             var defaults = {
                 align: {pos: 'bottom', collision: 'none'},
                 classPrefix: 'egeui-select',
                 selectTpl: this._selectTpl,
                 itemSelectedClass: 'item-selected',
-                itemTpl: '',
                 selectFirst: false,
                 submitOnEnter: false,
                 delay: 200
@@ -810,15 +985,65 @@
             var options = this.options = $.extend(true, defaults, this.options);
 
             this.$element = $(this._parseTpl(options.selectTpl));
+            if(options.themeClass){
+                this.$element.addClass(options.themeClass);
+            }
             this._itemWrapTpl = this._parseTpl(this._itemWrapTpl);
             options.align.elem = options.align.elem || options.trigger;
 
             AutoComplete.superClass.setup.call(this);
 
-            this._bindTrigger();
+            this.dataSource =  new DataSource({
+                source: options.dataSource,
+                filter: options.filter,
+                locator: options.locator,
+                valueField: options.valueField
+            })
 
-            this.sourceData = normalize(this._initDataSource(options.dataSource))
-            this._initFilter();
+            this._bindEvents();
+        },
+        show: function(){
+            if(this.visible) return;
+            if(this._isEmpty()) return;
+            AutoComplete.superClass.show.call(this);
+
+            this.$element.scrollTop(0);
+            this._adjustMaxHeight();
+        },
+        reset: function(){
+            if(lteIE9) this.slient = true;
+            $$(this.options.trigger).val(this.query = '');
+            this._clear();
+            this.hide();
+        },
+        destroy: function(){
+            this.dataSource = null;
+            this.data = null;
+            $$(this.options.trigger).off();
+            this._clear();
+            AutoComplete.superClass.destroy.call(this);
+        },
+
+        query: '',
+        lastIndex: -1,
+        selectedIndex: -1,
+        allowMouseMove: true,
+        queryData: function(query){
+            if(query === undefined && this.query === ''){
+                this.data = [];
+                return;
+            }
+            this.dataSource.abort();
+            this.dataSource.getData(query || this.query)
+        },
+
+        _bindEvents: function(){
+            var options = this.options;
+
+            this.dataSource.on('data', function(data){
+                this.data = data;
+                this._fillItems();
+            }, this);
 
             if(options.selectFirst){
                 this.after('show', function(){
@@ -836,17 +1061,18 @@
             this.on('indexChange', this._handleItemHover)
             .on('itemSelected', function(){
                 this.selected = true;
-                var selectedIndex = this.data[this.selectedIndex].index;
-                var selectedData = this.sourceData[selectedIndex];
+                var selectedData = this.data[this.selectedIndex];
                 this.hide();
-                if(selectedData.value){
+                if(this.dataSource.search_fields){
+                    this.trigger('selected', this.dataSource.source[selectedData.index])
+                } else {
+                    var val = selectedData[this.dataSource.valueField || 'value'] || selectedData;
                     if(lteIE9) this.slient = true;
-                    $$(options.trigger).val(selectedData.value);
-                    this.query = selectedData.value;
-                } else if(options.dataSource.data){
-                    this.trigger('selected', options.dataSource.data[selectedIndex])
+                    $$(options.trigger).val(val);
+                    this.query = val;
+                    this.trigger('selected', selectedData.value || selectedData);
                 }
-            })
+            });
 
             this.$('[data-role=items]').on('mouseenter.autocomplete', 'li', wrapFn(function(ev){
                 if(!this.allowMouseMove){
@@ -867,46 +1093,10 @@
                 e.preventDefault();
                 this.trigger('itemSelected')
             }, this));
-        },
-        show: function(){
-            if(this.visible) return;
-            if(this._isEmpty()) return;
-            AutoComplete.superClass.show.call(this);
 
-            this.$element.scrollTop(0);
-            this._adjustMaxHeight();
-        },
-        reset: function(){
-            if(lteIE9) this.slient = true;
-            $$(this.options.trigger).val(this.query = '');
-            this._clear();
-            this.hide();
-        },
-        destroy: function(){
-            this.sourceData = null;
-            this.dataSource = null;
-            this.data = null;
-            $$(this.options.trigger).off();
-            this._clear();
-            AutoComplete.superClass.destroy.call(this);
+            this._bindTrigger();
         },
 
-        query: '',
-        lastIndex: -1,
-        selectedIndex: -1,
-        allowMouseMove: true,
-        queryData: function(query){
-            if(query === undefined && this.query === ''){
-                this.data = [];
-                return;
-            }
-            if(this.sourceData){
-                this._filterData(this.sourceData)
-            }
-            this._fillItems();
-
-            this.show()
-        },
         _fillItems: function(){
             var items = '';
             $.each(this.data, wrapFn(function(index, item){
@@ -914,50 +1104,16 @@
                 items += this._itemWrapTpl.replace('{{item}}', item)
             }, this))
             this.items = this.$('[data-role=items]').html(items).children();
+            this.show()
         },
         _renderItem: function (item){
+            if(!this.options.itemTpl){
+                return item;
+            }
             if(item.value && !$.isPlainObject(item.value)){
                 return highlight(item.value, item.hlIndex);
             } else {
-                return parseItem(this.options.itemTpl, item)
-            }
-        },
-        _filterData: function(data){
-            if(this.filter){
-                data = this.filter(data, this.query);
-                this.data = data;
-            }
-        },
-        _initDataSource: function(dataSource){
-            if($.isArray(dataSource)){
-                return dataSource;
-            }
-
-            if(dataSource.data && $.isArray(dataSource.data) && dataSource.fields){
-                var data = dataSource.data;
-                var fields = dataSource.fields;
-                var l = data.length;
-                var result = [];
-                // console.log(data)
-                for (var i = 0; i < l ; i++) {
-                    var item = {};
-                    for(var f = 0; f < fields.length; f++){
-                        item[fields[f]] = data[i][fields[f]]
-                    }
-                    result[i] = item;
-                }
-                return result;
-            }
-        },
-        _initFilter: function(){
-            var filter = this.options.filter || 'startsWith';
-            if($.isFunction(filter)){
-                this.filter = filter;
-            } else {
-                this.filter = Filters[filter];
-            }
-            if(!this.filter){
-                throw new Error('Specified filter is not existed.')
+                return parseItem(this.options.itemTpl, item, this.dataSource.filter)
             }
         },
         // bind event
@@ -998,13 +1154,16 @@
         _handleKeydown: function (e) {
             var keyName = specialKeyCodeMap[e.which];
             if (keyName) {
-                e.preventDefault();
+                // TODO: _handleKeyDownUp can't prenvent default;
+                if(keyName === 'up'){
+                    e.preventDefault();
+                }
                 var eventKey = 'key' + capitalize(keyName);
                 $$(this.options.trigger).trigger(e.type = eventKey, e);
             }
         },
         _handleKeyEnter: function(e){
-            this.items[this.selectedIndex] && this.trigger('itemSelected');
+            this.items && this.items[this.selectedIndex] && this.trigger('itemSelected');
             !this.options.submitOnEnter && e.preventDefault();
         },
         _handleKeyDownUp: function(e){
@@ -1054,7 +1213,7 @@
             $(this.items[this.lastIndex]).removeClass(this.options.itemSelectedClass);
             $(this.items[this.selectedIndex]).addClass(this.options.itemSelectedClass);
         },
-        _isEmpty: function () {
+        _isEmpty: function() {
             var data = this.data;
             return !(data && data.length > 0);
         },
@@ -1067,72 +1226,10 @@
             return tpl.replace(/\{\{classPrefix\}\}/g, this.options.classPrefix);
         }
     })
-
-    var Filters = {
-        'startsWith': function(data, search){
-            var re = new RegExp('^' + escapeKeyword(search));
-            var result = [];
-            var l = search.length;
-            $.each(data, function(index, item){
-                var new_item = {};
-                var matched = false;
-
-                for(var field in item){
-                    if(!$.isPlainObject(item[field]) && field === 'value'){
-                        new_item.value = item.value;
-                        if(re.test(item.value)){
-                            new_item.hlIndex = [0, l];
-                            matched = true;
-                        }
-                    } else if($.isPlainObject(item[field])){
-                        new_item[field] = {
-                            value: item[field].value
-                        };
-                        if(re.test(item[field].value)){
-                            new_item[field].hlIndex = [0, l];
-                            matched = true;
-                        }
-                    }
-                }
-                if(matched){
-                    new_item.index = index;
-                    result.push(new_item);
-                }
-            })
-            return result;
-        },
-        'stringMatch': function(data, search){
-
-        }
-    }
-
-    // 标准数据格式
-    // {
-    //     value: 'xxx' 或者 {'field1': {value: '123'}, 'field2': {value: 'xxx'}} 待匹配字段
-    //     hlIndex: [start, end] 高亮范围  filter 后返回
-    // }
-    function normalize(data) {
-        var result = [];
-        $.each(data, function (index, item) {
-            if (isString(item)) {
-                result.push({
-                    value: item
-                });
-            } else if ($.isPlainObject(item)) {
-                for(var field in item){
-                    item[field] = {
-                        value: item[field]
-                    }
-                }
-                result.push(item);
-            }
-        });
-        return result;
-    }
-    function parseItem(tpl, data){
+    function parseItem(tpl, data, hl){
         var re = /(.*?)\{\{([\w\-]+)\}\}(.*?)/g;
         return tpl.replace(re, function(match, p1, p2, p3){
-            return  p1 + highlight(data[p2].value, data[p2].hlIndex) + p3;
+            return  p1 + (hl ? highlight(data[p2].value, data[p2].hlIndex) : data[p2]) + p3;
         })
     }
     function highlight(text, hlIndex){
@@ -1140,9 +1237,8 @@
         var l = text.length;
         return text.substr(0, hlIndex[0]) + '<b>' +
                text.substr(hlIndex[0], hlIndex[1]) + '</b>' +
-               text.substr(hlIndex[1], l);
+               text.substr(hlIndex[0] + hlIndex[1], l);
     }
-
     var specialKeyCodeMap = {
         // 9: 'tab',
         27: 'esc',
@@ -1152,10 +1248,6 @@
         38: 'up',
         40: 'down'
     };
-
-    function isString(str) {
-        return Object.prototype.toString.call(str) === '[object String]';
-    }
     function escapeKeyword (str){
         return str.replace(/[\-\[\]\/\{\}\(\)\*\+\?\.\\\^\$\|]/g, "\\$&");
     }
@@ -1199,6 +1291,14 @@
             fn.apply(context, arguments);
         }
     }
+    function capitalize(str) {
+        return str.replace(/^([a-z])/, function (f, m) {
+            return m.toUpperCase();
+        });
+    }
+    function isString(str) {
+        return Object.prototype.toString.call(str) === '[object String]';
+    }
 
 
     /* Contacts WIDGET DEFINITION
@@ -1226,6 +1326,7 @@
                 trigger: this.input,
                 selectFirst: options.selectFirst,
                 dataSource: options.data,
+                filter: options.filter,
                 itemTpl: options.itemTpl,
                 zIndex: 9999,
                 align: {

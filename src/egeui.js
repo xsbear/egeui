@@ -238,7 +238,7 @@
                 for (var i = 0; i < handlers.length; i++) {
                     if ($.isFunction(handlers[i][0])) {
                         handlers[i][0].apply(handlers[i][1], args);
-                    } else if(isString(handlers[i])) {
+                    } else if(isString(handlers[i][0])) {
                         this[handlers[i][0]].apply(handlers[i][1], args);
                     }
                 }
@@ -1000,6 +1000,11 @@
                 valueField: options.valueField
             })
 
+            if(options.enableChar){
+                this.enableChar = options.enableChar;
+                this.disabled = true;
+            }
+
             this._bindEvents();
         },
         show: function(){
@@ -1028,11 +1033,17 @@
         lastIndex: -1,
         selectedIndex: -1,
         allowMouseMove: true,
+        disabled: false,
+        disableChar: ' ',
         queryData: function(query){
+            if(this.disabled){
+                return;
+            }
             if(query === undefined && this.query === ''){
                 this.data = [];
                 return;
             }
+            console.log(this.query)
             this.dataSource.abort();
             this.dataSource.getData(query || this.query)
         },
@@ -1068,8 +1079,16 @@
                 } else {
                     var val = selectedData[this.dataSource.valueField || 'value'] || selectedData;
                     if(lteIE9) this.slient = true;
+
+                    if(this.enableChar){
+                        var old_val = $$(options.trigger).val();
+                        val = old_val.substr(0, this.insert_start) + val + ' ' + old_val.substr(this.insert_start + this.query.length);
+                        this.disabled = true;
+                    } else {
+                        this.query = val;
+                    }
+
                     $$(options.trigger).val(val);
-                    this.query = val;
                     this.trigger('selected', selectedData.value || selectedData);
                 }
             });
@@ -1107,12 +1126,9 @@
             this.show()
         },
         _renderItem: function (item){
-            if(!this.options.itemTpl){
-                return item;
-            }
             if(item.value && !$.isPlainObject(item.value)){
                 return highlight(item.value, item.hlIndex);
-            } else {
+            } else if(this.options.itemTpl){
                 return parseItem(this.options.itemTpl, item, this.dataSource.filter)
             }
         },
@@ -1129,10 +1145,19 @@
                     that.slient = false;
                     return;
                 }
+                var new_query = $(ev.target).val().replace(/^\s*/, '');
 
-                var query_new = $(ev.target).val().replace(/^\s*/, '');
-                if(compare(that.query, query_new)) return;
-                that.query = query_new;
+                if(that.enableChar && !that.disabled){
+                    var cursor = getInputSelection(ev.target)
+                    var at_cursor = new_query.lastIndexOf(that.enableChar, cursor);
+                    new_query = new_query.substr(at_cursor)
+                    new_query = /^@([^\s]+)\s*/.exec(new_query);
+                    new_query = new_query ? new_query[1] : '';
+                    that.insert_start = at_cursor + 1;
+                }
+
+                if(compare(that.query, new_query)) return;
+                that.query = new_query;
 
                 queryTimer && clearTimeout(queryTimer);
                 queryTimer = setTimeout(function(){
@@ -1152,10 +1177,24 @@
             })
         },
         _handleKeydown: function (e) {
+            // console.log(e.key)
+            if(this.enableChar){
+                if(e.key === this.enableChar){
+                    this.disabled = false;
+                    console.log('enable')
+                } else if(e.key === this.disableChar){
+                    this.disabled = true;
+                    console.log('disable')
+                }
+            }
             var keyName = specialKeyCodeMap[e.which];
             if (keyName) {
                 // TODO: _handleKeyDownUp can't prenvent default;
                 if(keyName === 'up'){
+                    e.preventDefault();
+                }
+                if(this.enableChar && keyName  === 'enter'){
+                    // console.log(e);
                     e.preventDefault();
                 }
                 var eventKey = 'key' + capitalize(keyName);
@@ -1163,6 +1202,7 @@
             }
         },
         _handleKeyEnter: function(e){
+            // e.preventDefault();
             this.items && this.items[this.selectedIndex] && this.trigger('itemSelected');
             !this.options.submitOnEnter && e.preventDefault();
         },
@@ -1298,6 +1338,52 @@
     }
     function isString(str) {
         return Object.prototype.toString.call(str) === '[object String]';
+    }
+
+
+    function getInputSelection(el) {
+        var start = 0, end = 0, normalizedValue, range,
+            textInputRange, len, endRange;
+
+        if (typeof el.selectionStart == "number" && typeof el.selectionEnd == "number") {
+            start = el.selectionStart;
+            end = el.selectionEnd;
+        } else {
+            range = document.selection.createRange();
+
+            if (range && range.parentElement() == el) {
+                len = el.value.length;
+                normalizedValue = el.value.replace(/\r\n/g, "\n");
+
+                // Create a working TextRange that lives only in the input
+                textInputRange = el.createTextRange();
+                textInputRange.moveToBookmark(range.getBookmark());
+
+                // Check if the start and end of the selection are at the very end
+                // of the input, since moveStart/moveEnd doesn't return what we want
+                // in those cases
+                endRange = el.createTextRange();
+                endRange.collapse(false);
+
+                if (textInputRange.compareEndPoints("StartToEnd", endRange) > -1) {
+                    start = end = len;
+                } else {
+                    start = -textInputRange.moveStart("character", -len);
+                    start += normalizedValue.slice(0, start).split("\n").length - 1;
+
+                    if (textInputRange.compareEndPoints("EndToEnd", endRange) > -1) {
+                        end = len;
+                    } else {
+                        end = -textInputRange.moveEnd("character", -len);
+                        end += normalizedValue.slice(0, end).split("\n").length - 1;
+                    }
+                }
+            }
+        }
+        return {
+            start: start,
+            end: end
+        };
     }
 
 

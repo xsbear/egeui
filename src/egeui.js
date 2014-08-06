@@ -271,7 +271,7 @@
         // `parent`'s constructor function.
         var Surrogate = function(){ this.constructor = child; };
         Surrogate.prototype = parent.prototype;
-        child.prototype = new Surrogate();
+        child.prototype = new Surrogate;
 
         // Add prototype properties (instance properties) to the subclass,
         // if supplied.
@@ -1111,6 +1111,8 @@
                 return highlight(item.value, item.hlIndex);
             } else if(this.options.itemTpl) {
                 return parseItem(this.options.itemTpl, item, this.dataSource.filter)
+            } else {
+                return item;
             }
         },
         // bind event
@@ -1315,6 +1317,8 @@
             ContactSelect.superClass.setup.call(this);
 
             this.input = $(options.inputTpl).appendTo(this.element).css('border', 'none');
+            this.items = [];
+            this.contacts = [];
 
             this.adjustInputWidth();
 
@@ -1350,9 +1354,6 @@
 
             this.render();
         },
-        contacts: [],
-        // TODO: public private diff
-        items: [],
         events: {
             "click": function(){
                 this.input.focus()

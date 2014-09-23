@@ -328,7 +328,7 @@
         },
         destroy: function(){
             this.trigger('before', 'destroy')
-            this.$element.off();
+            this.$element.off('.egeuiEvents' + this.cid);
             delete cachedInstances[this.cid];
 
             if(this._isTemplate){
@@ -337,15 +337,16 @@
 
             this.trigger('after', 'destroy');
             this._widgetEvents = null;
+            this.events = null;
             this.$element = null;
         },
         _delegateEvents: function(){
-            var events = this.events = $.extend(this.events, this.options.events);
-            if(this.events){
-                for(var key in this.events){
-                    if(this.events.hasOwnProperty(key)){
+            var events = $.extend({}, this.events, this.options.events)
+            if(events){
+                for(var key in events){
+                    if(events.hasOwnProperty(key)){
                         var match = key.match(EVENT_KEY_SPLITTER);
-                        var  eventType = match[1];
+                        var  eventType = match[1] + '.egeuiEvents' + this.cid;
                         var selector = match[2] || undefined;
 
                         (function(handler, widget) {
@@ -403,7 +404,6 @@
                 this.after(options.align.after, this.align);
                 delete(options.align.after);
             }
-            options.hideBlur && this._hideBlur($$(options.trigger))
             options.visible && this.show();
         },
         render: function(){
@@ -412,6 +412,10 @@
             if(this.options.align){
                 Overlay.alignOverlays.push(this);
             }
+            if(this.options.hideBlur){
+                this._hideBlur($$(this.options.trigger))
+            }
+            return this;
         },
         visible: false,
         align: function(posOption){
@@ -556,7 +560,7 @@
 
             Popup.superClass.setup.call(this);
 
-            this.render();
+            // this.render();
             this._bindTrigger();
 
             // 当使用委托事件时，_hideBlur 方法对于新添加的节点会失效 需要重新绑定
@@ -668,6 +672,43 @@
     }
 
 
+    var Tip = Popup.extend({
+        setup: function(){
+            var defaults = {
+                // zIndex: '2999',
+                pos: 'top',
+                template: '<div class="egeui-tip"></div>'
+            }
+
+            var options = this.options = $.extend(defaults, this.options);
+
+            if(!options.align){
+                options.align = {
+                    pos: options.pos,
+                    offset: options.pos === 'top' || options.pos === 'bottom' ? '0 50%' : '50% 0'
+                }
+            }
+
+
+            var trigger = $$(options.trigger);
+            if(!options.content && (trigger.attr('title') || trigger.attr('data-title'))){
+                options.content = trigger.attr('title') || trigger.attr('data-title');
+                trigger.removeAttr('title').attr('data-title', options.content);
+            }
+            if(!options.content){
+                throw new Error('Tip Error: content or title not specified');
+            }
+
+            Tip.superClass.setup.call(this);
+
+            this.$element.append(options.content)
+            this.$element.addClass('tip-' + options.pos);
+
+            // if(options.themeClass) this.$element.addClass(options.themeClass);
+
+        }
+    })
+
     /* Mask WIDGET DEFINITION
      * ====================== */
     var Mask = Overlay.extend({
@@ -708,27 +749,29 @@
                 classPrefix: 'egeui-dialog',
                 closeTpl: 'x',
                 title: '',
-                zIndex: 999
+                zIndex: 999 + dialogCounter * 2
                 // visible: true
             };
             var options = this.options = $.extend(defaults, this.options);
 
             this.$element = $(this._parseTpl(this._dialogTpl));
-            if(options.closeTpl){
-                $(this._parseTpl(this._closeTpl)).appendTo(this.$element).append(options.closeTpl);
-            }
-            if(options.title){
-                $(this._parseTpl(this._titleTpl)).appendTo(this.$element).append(options.title);
-            }
+            if(options.themeClass) this.$element.addClass(options.themeClass);
+            if(options.closeTpl) $(this._parseTpl(this._closeTpl)).appendTo(this.$element).append(options.closeTpl);
+            if(options.title) $(this._parseTpl(this._titleTpl)).appendTo(this.$element).append(options.title);
+
             if(options.content){
                 this.$contentElement = $(this._parseTpl(this._contentTpl)).append(options.content);
                 this.$element.append(this.$contentElement)
             } else {
                 throw new Error('Dialog Error: content not specified');
             }
+            if(options.actions) this.$element.append(options.actions);
 
             if(options.mask){
-                this.mask = new Mask( options.mask === true ? {} : options.mask)
+                var maskOptions = options.mask === true ? {
+                    zIndex: options.zIndex - 1
+                } : options.mask;
+                this.mask = new Mask(maskOptions)
 
                 this.before('show', function(){
                     this.mask.show();
@@ -743,6 +786,10 @@
 
             // TODO when content is in document, keep element to origin parentNode before destroy
             this._isTemplate = true;
+            dialogCounter++;
+            this.after('destroy', function(){
+                dialogCounter--;
+            })
         },
         events: {
             'click [data-role=close]': function(e){
@@ -754,6 +801,58 @@
             return tpl.replace(/\{\{classPrefix\}\}/g, this.options.classPrefix);
         }
     })
+
+    var dialogCounter = 0;
+
+    /* ConfirmBox WIDGET DEFINITION
+     * ====================== */
+    var ConfirmBox = Dialog.extend({
+
+        _messageTpl: '<div class="{{classPrefix}}-message" data-role="message"></div>',
+        _actionTpl: '<div class="{{classPrefix}}-action" data-role="action"></div>',
+
+        setup: function() {
+            var defaults = {
+                message: '',
+                classPrefix: 'egeui-confirmbox',
+                confirmTpl: '<button class="pure-button button-primary confirm" data-role="confirm">确定</button>',
+                cancelTpl: '<button class="pure-button cancel" data-role="cancel">取消</button>',
+                mask: true,
+                closeTpl: null
+            }
+            var options = this.options = $.extend(defaults, this.options);
+            this.options.content = $(this._parseTpl(this._messageTpl)).append(options.message);
+            var actions = $(this._parseTpl(this._actionTpl));
+            if(options.confirmTpl) {
+                actions.append(options.confirmTpl);
+                if(options.confirmText) actions.find('[data-role=confirm]').text(options.confirmText);
+            }
+            if(options.cancelTpl){
+                actions.append(options.cancelTpl);
+                if(options.cancelText) actions.find('[data-role=cancel]').text(options.cancelText);
+            }
+            if(!options.title){
+                options.themeClass = 'no-title';
+            }
+
+            this.options.actions = actions;
+
+            ConfirmBox.superClass.setup.call(this);
+
+            this.render().show();
+        },
+        events: {
+            'click [data-role=confirm]': function (e) {
+                if(this.options.onConfirm) this.options.onConfirm();
+                this.destroy();
+            },
+            'click [data-role=cancel]': function(e){
+                if(this.options.onCancel) this.options.onCancel();
+                this.destroy();
+            }
+        }
+    })
+
 
 
     /* DataSource CLASS DEFINITION
@@ -988,6 +1087,9 @@
             if(options.themeClass){
                 this.$element.addClass(options.themeClass);
             }
+            if(options.width){
+                this.$element.css('width', options.width)
+            }
             this._itemWrapTpl = this._parseTpl(this._itemWrapTpl);
             options.align.elem = options.align.elem || options.trigger;
 
@@ -1163,6 +1265,7 @@
         },
         _handleKeyEnter: function(e){
             this.items && this.items[this.selectedIndex] && this.trigger('itemSelected');
+            this.hide();
             !this.options.submitOnEnter && e.preventDefault();
         },
         _handleKeyDownUp: function(e){
@@ -1307,7 +1410,9 @@
             Overlay.superClass.setup.call(this);
             var defaults = {
                 inputTpl: '<input type="text">',
-                removeTpl: '<i data-role="remove">x</i>'
+                contactTpl: '<span>{{name}}</span>',
+                removeTpl: '<i data-role="remove">x</i>',
+                itemTpl: '<span class="name">{{name}}</span> ({{login}})',
             }
             var options = this.options = $.extend(defaults, this.options);
             if(!options.contactTpl){
@@ -1331,9 +1436,12 @@
                 itemTpl: options.itemTpl,
                 zIndex: 9999,
                 align: {
-                    elem: this.$element,
+                    elem: options.alignElement || this.$element,
+                    offset: '-1 0',
                     after: 'show'
-                }
+                },
+                themeClass: 'contact-select',
+                width: $$(options.alignElement)[0] && $$(options.alignElement).innerWidth()
             }).on('selected', function(data){
                 this.reset();
                 that.insertItem(data);
@@ -1345,8 +1453,10 @@
                 }
             })
 
-            if(options.showAllTrigger){
-                $$(options.showAllTrigger).click(function(){
+            if(this.$element.attr('placeholder')) this.input.attr('placeholder', this.$element.attr('placeholder'));
+
+            if(options.trigger){
+                $$(options.trigger).click(function(){
                     that.selector.queryData('');
                     that.input.focus()
                 })
@@ -1417,7 +1527,9 @@
     var pub = {};
     pub.Overlay = Overlay;
     pub.Popup = Popup;
+    pub.Tip = Tip;
     pub.Dialog = Dialog;
+    pub.ConfirmBox = ConfirmBox;
     pub.AutoComplete = AutoComplete;
     pub.ContactSelect = ContactSelect;
 

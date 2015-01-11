@@ -3,7 +3,7 @@
 (function(global, factory){
     // Set up egeui appropriately for the environment.
     if (typeof define === 'function' && define.cmd) {
-        define(function(require, exports, module) {
+        define("lib/egeui/0.1.1/egeui", ["jquery"], function(require, exports, module) {
             var $ = require('jquery');
             module.exports = factory($);
         });
@@ -248,7 +248,7 @@
             this._widgetEvents = this._widgetEvents || {};
             var events = this._widgetEvents[type] || (this._widgetEvents[type] = {});
             return events[event] || (events[event] = []);
-        },
+        }
     }
 
     Base.extend = function(protoProps, staticProps) {
@@ -307,6 +307,7 @@
             this.element = this.$element[0];
             options.id && this.$element.attr('id', options.id);
             options.className && this.$element.addClass(options.className);
+            options.themeClass && this.$element.addClass(options.themeClass);
 
             this.cid = uniqueCid();
             cachedInstances[this.cid] = this;
@@ -359,7 +360,11 @@
                             }
                             // delegate
                             if (selector) {
-                                widget.$element.on(eventType, selector, callback)
+                                if(match[1] === 'change'){
+                                    widget.$element.find(selector).on(eventType, callback)
+                                } else {
+                                    widget.$element.on(eventType, selector, callback)
+                                }
                             } else {
                                 widget.$element.on(eventType, callback)
                             }
@@ -436,9 +441,19 @@
             Position.pin(this.$element, pos);
             return this;
         },
-        show : function() {
+        show: function() {
             if(!this.rendered){
                 this.render();
+            }
+            // delay trigger hideblur when show event is contextmenu
+            // to prevent click event immediately after contextmenu event
+            // especially in Mac touchpad, contextmenu is double click
+            if(this.options.hideBlur === 'contextmenu'){
+                this.delayHideBlur = true;
+                var that = this;
+                setTimeout(function(){
+                    delete(that.delayHideBlur);
+                }, 100)
             }
             this.trigger('before', 'show')
             this.$element.show();
@@ -465,7 +480,7 @@
             if(!relativeOnly){
                 Overlay.blurOverlays.push(this);
             }
-        },
+        }
     });
 
     // 绑定 resize 后重新定位
@@ -511,7 +526,7 @@
                     throw new Error('Overlay Error: an instance element is not existed, it should be destroyed.')
                     return;
                 }
-                if(!item.visible){
+                if(item.delayHideBlur || !item.visible){
                     return;
                 }
                 for (var i = 0; i < item._relativeElements.length; i++) {
@@ -675,7 +690,7 @@
     var Tip = Popup.extend({
         setup: function(){
             var defaults = {
-                // zIndex: '2999',
+                zIndex: '2999',
                 pos: 'top',
                 template: '<div class="egeui-tip"></div>'
             }
@@ -685,27 +700,40 @@
             if(!options.align){
                 options.align = {
                     pos: options.pos,
-                    offset: options.pos === 'top' || options.pos === 'bottom' ? '0 50%' : '50% 0'
+                    offset: options.pos === 'top' || options.pos === 'bottom' ? '0 50%' : '50% 0',
+                    collision: 'none'
                 }
-            }
-
-
-            var trigger = $$(options.trigger);
-            if(!options.content && (trigger.attr('title') || trigger.attr('data-title'))){
-                options.content = trigger.attr('title') || trigger.attr('data-title');
-                trigger.removeAttr('title').attr('data-title', options.content);
-            }
-            if(!options.content){
-                throw new Error('Tip Error: content or title not specified');
             }
 
             Tip.superClass.setup.call(this);
 
-            this.$element.append(options.content)
+            if(options.delegateNode){
+                this.before('show', function(){
+                    this.setContent($$(this.activeTrigger));
+                }).after('show', function(){
+                    this.options.align.elem = this.activeTrigger;
+                    this.align(this.options.align);
+                });
+                // TODO: fix non ascii char problem affect align
+                if(!options.width){
+                    this.$element.css('white-space', 'nowrap')
+                }
+            } else {
+                this.setContent();
+            }
             this.$element.addClass('tip-' + options.pos);
-
-            // if(options.themeClass) this.$element.addClass(options.themeClass);
-
+        },
+        setContent: function(srcElement){
+            srcElement = srcElement || $$(this.options.trigger);
+            var content = this.options.content;
+            if(!content && (srcElement.attr('title') || srcElement.attr('data-title'))){
+                content = srcElement.attr('title') || srcElement.attr('data-title');
+                srcElement.removeAttr('title').attr('data-title', content);
+            }
+            if(!content){
+                throw new Error('Tip Error: content or title not specified.');
+            }
+            this.$element.html(content)
         }
     })
 
@@ -718,7 +746,7 @@
                 height: '100%',
                 position: 'fixed',
                 zIndex: 499,
-                opacity: 0.3,
+                opacity: 0.5,
                 backgroundColor: '#000',
                 template: '<div class="egeui-mask"></div>'
             }
@@ -728,7 +756,7 @@
 
             this.$element.css({
                 'background-color': options.backgroundColor,
-                'opacity': options.opacity,
+                'opacity': options.opacity
             })
         }
     })
@@ -755,7 +783,6 @@
             var options = this.options = $.extend(defaults, this.options);
 
             this.$element = $(this._parseTpl(this._dialogTpl));
-            if(options.themeClass) this.$element.addClass(options.themeClass);
             if(options.closeTpl) $(this._parseTpl(this._closeTpl)).appendTo(this.$element).append(options.closeTpl);
             if(options.title) $(this._parseTpl(this._titleTpl)).appendTo(this.$element).append(options.title);
 
@@ -973,8 +1000,8 @@
             },
             'stringMatch':  function(data, search){
                 return filterData('stringMatch', data, search)
-            },
-        },
+            }
+        }
     })
 
     // 标准数据格式
@@ -1079,17 +1106,15 @@
                 itemSelectedClass: 'item-selected',
                 selectFirst: false,
                 submitOnEnter: false,
+                changeOnSelect: true,
                 delay: 200
             };
             var options = this.options = $.extend(true, defaults, this.options);
 
             this.$element = $(this._parseTpl(options.selectTpl));
-            if(options.themeClass){
-                this.$element.addClass(options.themeClass);
-            }
-            if(options.width){
-                this.$element.css('width', options.width)
-            }
+            // if(options.width){
+            //     this.$element.css('width', options.width)
+            // }
             this._itemWrapTpl = this._parseTpl(this._itemWrapTpl);
             options.align.elem = options.align.elem || options.trigger;
 
@@ -1168,10 +1193,12 @@
                 if(this.dataSource.search_fields){
                     this.trigger('selected', this.dataSource.source[selectedData.index])
                 } else {
-                    var val = selectedData[this.dataSource.valueField || 'value'] || selectedData;
-                    if(lteIE9) this.slient = true;
-                    $$(options.trigger).val(val);
-                    this.query = val;
+                    if(this.options.changeOnSelect){
+                        var val = selectedData[this.dataSource.valueField || 'value'] || selectedData;
+                        if(lteIE9) this.slient = true;
+                        $$(options.trigger).val(val);
+                        this.query = val;
+                    }
                     this.trigger('selected', selectedData.value || selectedData);
                 }
             });
@@ -1212,7 +1239,7 @@
             if(item.value && !$.isPlainObject(item.value)){
                 return highlight(item.value, item.hlIndex);
             } else if(this.options.itemTpl) {
-                return parseItem(this.options.itemTpl, item, this.dataSource.filter)
+                return parseItem($.isFunction(this.options.itemTpl) ? this.options.itemTpl(item) : this.options.itemTpl, item, this.dataSource.filter)
             } else {
                 return item;
             }
@@ -1255,20 +1282,22 @@
         _handleKeydown: function (e) {
             var keyName = specialKeyCodeMap[e.which];
             if (keyName) {
-                // TODO: _handleKeyDownUp can't prenvent default;
-                if(keyName === 'up'){
-                    e.preventDefault();
-                }
                 var eventKey = 'key' + capitalize(keyName);
                 $$(this.options.trigger).trigger(e.type = eventKey, e);
             }
         },
-        _handleKeyEnter: function(e){
-            this.items && this.items[this.selectedIndex] && this.trigger('itemSelected');
-            this.hide();
-            !this.options.submitOnEnter && e.preventDefault();
+        _handleKeyEnter: function(e, originEvent){
+            if(this.items && this.items[this.selectedIndex]){
+                !this.options.submitOnEnter && originEvent.preventDefault();
+                this.trigger('itemSelected');
+            } else {
+                this.hide()
+            }
         },
-        _handleKeyDownUp: function(e){
+        _handleKeyDownUp: function(e, originEvent){
+            if(e.type === 'keyUp'){
+                originEvent.preventDefault();
+            }
             if(this.selected){
                 this._clear();
                 this.queryData();
@@ -1411,8 +1440,11 @@
             var defaults = {
                 inputTpl: '<input type="text">',
                 contactTpl: '<span>{{name}}</span>',
-                removeTpl: '<i data-role="remove">x</i>',
+                removeTpl: '<i data-role="remove" title="删除" class="icon icon-pill-remove"></i>',
                 itemTpl: '<span class="name">{{name}}</span> ({{login}})',
+                inputMinWidth: 60,
+                showOnClick: true,
+                multiple: true
             }
             var options = this.options = $.extend(defaults, this.options);
             if(!options.contactTpl){
@@ -1437,7 +1469,7 @@
                 zIndex: 9999,
                 align: {
                     elem: options.alignElement || this.$element,
-                    offset: '-1 0',
+                    offset: options.alignOffset || '-1 0',
                     after: 'show'
                 },
                 themeClass: 'contact-select',
@@ -1446,7 +1478,6 @@
                 this.reset();
                 that.insertItem(data);
             });
-
             this.input.on('keydown.contactselect', function(e){
                 if(e.which === 8 && this.value === '' && that.items.length){
                     that.removeItem(that.items.length - 1)
@@ -1455,10 +1486,9 @@
 
             if(this.$element.attr('placeholder')) this.input.attr('placeholder', this.$element.attr('placeholder'));
 
-            if(options.trigger){
-                $$(options.trigger).click(function(){
+            if(options.showOnClick){
+                this.input.focus(function(){
                     that.selector.queryData('');
-                    that.input.focus()
                 })
             }
 
@@ -1478,8 +1508,10 @@
             ContactSelect.superClass.destroy.call(this);
         },
         'insertItem': function(data){
-            if(this.contacts.indexOf(data) > -1){
-                return;
+            for (var i = this.contacts.length - 1; i >= 0; i--) {
+                if(this.contacts[i].id == data.id){
+                    return;
+                }
             }
 
             var re = /(.*?)\{\{([\w\-]+)\}\}(.*?)/g;
@@ -1491,7 +1523,11 @@
                 $(this.options.removeTpl).appendTo(insertItem);
             }
             this.items.push(insertItem[0]);
-            this.adjustInputWidth();
+            if(this.options.multiple) {
+                this.adjustInputWidth();
+            } else {
+                this.input.hide();
+            }
             this.trigger('add', data)
             this.contacts.push(data);
         },
@@ -1501,6 +1537,7 @@
                 index = e;
                 item = this.items[index];
             } else {
+                e.stopPropagation();
                 item = $(e.target).parent()[0];
                 index = this.items.indexOf(item);
             }
@@ -1508,18 +1545,28 @@
             this.items.splice(index, 1);
             this.contacts.splice(index, 1);
             $(item).remove();
+            if(!this.options.multiple){
+                this.input.show();
+            }
             this.adjustInputWidth();
             this.trigger('remove', index);
         },
         'adjustInputWidth': function(){
-            var wrapWidth = this.$element.width();
+            var wrapWidth = this.$element.width() - 10;
             var inputWidth = wrapWidth;
             if(this.items.length){
                 var item = $(this.items.slice(-1)[0]);
-                inputWidth = wrapWidth - item.offset().left + this.$element.offset().left - item.outerWidth() - 10;
-                inputWidth = Math.max(30, inputWidth);
+                inputWidth = wrapWidth - item.offset().left + this.$element.offset().left - item.outerWidth();
+                if(inputWidth < this.options.inputMinWidth){
+                    inputWidth = wrapWidth;
+                }
             }
             this.input.css('width', inputWidth)
+        },
+        'clear': function(){
+            $(this.items).remove();
+            this.items = [];
+            this.contacts = [];
         }
     })
 

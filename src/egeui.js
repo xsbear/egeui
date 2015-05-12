@@ -3,7 +3,7 @@
 (function(global, factory){
     // Set up egeui appropriately for the environment.
     if (typeof define === 'function' && define.cmd) {
-        define("lib/egeui/0.1.1/egeui", ["jquery"], function(require, exports, module) {
+        define("lib/egeui/0.1.2/egeui", ["jquery"], function(require, exports, module) {
             var $ = require('jquery');
             module.exports = factory($);
         });
@@ -587,6 +587,7 @@
             }
 
             if(this.options.showAlign){
+                this.options.align = this.options.showAlign;
                 this.after('show', function(){
                     this.options.showAlign.elem = this.activeTrigger;
                     this.align(this.options.showAlign)
@@ -962,7 +963,7 @@
                 if(that.locator){
                     data = data[that.locator];
                 }
-                if ($.inArray(callbackId, that.callbacks) > -1) {
+                if (data && $.inArray(callbackId, that.callbacks) > -1) {
                     delete that.callbacks[callbackId];
                     that._done(data);
                 }
@@ -1131,7 +1132,7 @@
         },
         show: function(){
             if(this.visible) return;
-            if(this._isEmpty()) return;
+            if(this._isEmpty() && !this.options.searchMoreTpl) return;
             AutoComplete.superClass.show.call(this);
 
             this.$element.scrollTop(0);
@@ -1187,6 +1188,11 @@
             });
             this.on('indexChange', this._handleItemHover)
             .on('itemSelected', function(){
+                if(this.selectedIndex >= this.data.length){
+                    this.hide()
+                    this.trigger('searchMore');
+                    return;
+                }
                 this.selected = true;
                 var selectedData = this.data[this.selectedIndex];
                 this.hide();
@@ -1227,12 +1233,18 @@
         },
 
         _fillItems: function(){
-            var items = '';
+            var items = '', that = this;
             $.each(this.data, wrapFn(function(index, item){
                 item = this._renderItem(item);
                 items += this._itemWrapTpl.replace('{{item}}', item)
             }, this))
             this.items = this.$('[data-role=items]').html(items).children();
+
+            if(this.options.searchMoreTpl){
+                var moreItem = $(this._itemWrapTpl.replace('{{item}}', this.options.searchMoreTpl(this.items)))
+                .appendTo(this.$('[data-role=items]')).removeAttr('data-role').addClass('search-more');
+                this.items.push(moreItem[0]);
+            }
             this.show()
         },
         _renderItem: function (item){
@@ -1276,7 +1288,35 @@
             .on('keyEsc', wrapFn(this.hide, this));
 
             acBindEvent('blur', trigger, function(){
+                if(that.cancelBlur) {
+                    delete that.cancelBlur;
+                    $(trigger).focus();
+                    return;
+                }
+
                 that.hide();
+            })
+
+            // clicking on the scrollbar causes focus to shift to the body
+            // on IE, use jquery ui autocomplete solution
+            this.$element.on('mousedown.autocomplete', function(e){
+                e.preventDefault();
+
+                that.cancelBlur = true;
+                setTimeout(function() {
+                    delete that.cancelBlur;
+                }, 50);
+
+                var itemsEl = that.$element[0];
+                if(!$(e.target).closest(".egeui-select-item" ).length) {
+                    setTimeout(function(){
+                        $(document).one("mousedown", function(event) {
+                            if(event.target !== trigger && event.target !== itemsEl && !$.contains(itemsEl, event.target)) {
+                                that.hide();
+                            }
+                        });
+                    }, 50)
+                }
             })
         },
         _handleKeydown: function (e) {

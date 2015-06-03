@@ -1,9 +1,9 @@
-// EGEUI v0.1.0
+// EGEUI v0.1.3
 
 (function(global, factory){
     // Set up egeui appropriately for the environment.
     if (typeof define === 'function' && define.cmd) {
-        define("lib/egeui/0.1.2/egeui", ["jquery"], function(require, exports, module) {
+        define("lib/egeui/0.1.3/egeui", ["jquery"], function(require, exports, module) {
             var $ = require('jquery');
             module.exports = factory($);
         });
@@ -938,7 +938,7 @@
         },
         _getUrlData: function(query){
             var that = this,
-                options;
+                options = {cache: false};
             var obj = {
                 query: query ? encodeURIComponent(query) : '',
                 timestamp: new Date().getTime()
@@ -951,17 +951,17 @@
             this.callbacks.push(callbackId);
 
             if (/^(https?:\/\/)/.test(url)) {
-                options = {
-                    dataType: 'jsonp'
-                };
+                options.dataType = 'jsonp';
             } else {
-                options = {
-                    dataType: 'json'
-                };
+                options.dataType = 'json';
             }
             $.ajax(url, options).success(function (data) {
                 if(that.locator){
-                    data = data[that.locator];
+                    if($.isFunction(that.locator)){
+                        data = that.locator(data);
+                    } else {
+                        data = data[that.locator];
+                    }
                 }
                 if (data && $.inArray(callbackId, that.callbacks) > -1) {
                     delete that.callbacks[callbackId];
@@ -983,7 +983,6 @@
                     var fields = this.search_fields;
                     var l = data.length;
                     this.data = [];
-                    // console.log(data)
                     for (var i = 0; i < l ; i++) {
                         var item = {};
                         for(var f = 0; f < fields.length; f++){
@@ -993,14 +992,6 @@
                     }
                 }
                 normalizeData(this.data);
-            }
-        },
-        _filters: {
-            'startsWith': function(data, search){
-                return filterData('startsWith', data, search)
-            },
-            'stringMatch':  function(data, search){
-                return filterData('stringMatch', data, search)
             }
         }
     })
@@ -1016,8 +1007,10 @@
                 data[index] = {value: item};
             } else if ($.isPlainObject(item)) {
                 for(var field in item){
-                    item[field] = {
-                        value: item[field]
+                    if(item[field]){
+                        item[field] = {
+                            value: item[field]
+                        }
                     }
                 }
             }
@@ -1140,9 +1133,10 @@
         },
         reset: function(){
             if(lteIE9) this.slient = true;
-            $$(this.options.trigger).val(this.query = '');
-            this._clear();
-            this.hide();
+            if(this.query !== ''){
+                $$(this.options.trigger).val(this.query = '');
+                this._clear();
+            }
         },
         destroy: function(){
             this.dataSource = null;
@@ -1157,7 +1151,7 @@
         selectedIndex: -1,
         allowMouseMove: true,
         queryData: function(query){
-            if(query === undefined && this.query === ''){
+            if(!this.options.allowEmptyQuery && query === undefined && this.query === ''){
                 this.data = [];
                 return;
             }
@@ -1182,20 +1176,18 @@
             this.after('hide', function(){
                 if(this.items){
                     this.lastIndex = this.selectedIndex;
-                    this.selectedIndex =  -1;
+                    this.selectedIndex = -1;
                     this.trigger('indexChange');
                 }
             });
             this.on('indexChange', this._handleItemHover)
             .on('itemSelected', function(){
                 if(this.selectedIndex >= this.data.length){
-                    this.hide()
+                    this.hide();
                     this.trigger('searchMore');
                     return;
                 }
-                this.selected = true;
                 var selectedData = this.data[this.selectedIndex];
-                this.hide();
                 if(this.dataSource.search_fields){
                     this.trigger('selected', this.dataSource.source[selectedData.index])
                 } else {
@@ -1206,6 +1198,11 @@
                         this.query = val;
                     }
                     this.trigger('selected', selectedData.value || selectedData);
+                }
+                if(this.multiSelect){
+                    this.multiSelect = false;
+                } else {
+                    this.hide();
                 }
             });
 
@@ -1226,7 +1223,8 @@
                     };
                 }
                 e.preventDefault();
-                this.trigger('itemSelected')
+                this.trigger('itemClick', e);
+                this.trigger('itemSelected');
             }, this));
 
             this._bindTrigger();
@@ -1251,7 +1249,7 @@
             if(item.value && !$.isPlainObject(item.value)){
                 return highlight(item.value, item.hlIndex);
             } else if(this.options.itemTpl) {
-                return parseItem($.isFunction(this.options.itemTpl) ? this.options.itemTpl(item) : this.options.itemTpl, item, this.dataSource.filter)
+                return parseItem($.isFunction(this.options.itemTpl) ? this.options.itemTpl(item) : this.options.itemTpl, item, this.dataSource.source[item.index] || item)
             } else {
                 return item;
             }
@@ -1271,6 +1269,11 @@
                 }
 
                 var query_new = $(ev.target).val().replace(/^\s*/, '');
+
+                if(query_new === ''){
+                    that.trigger('inputEmptied');
+                }
+
                 if(compare(that.query, query_new)) return;
                 that.query = query_new;
 
@@ -1330,21 +1333,18 @@
             if(this.items && this.items[this.selectedIndex]){
                 !this.options.submitOnEnter && originEvent.preventDefault();
                 this.trigger('itemSelected');
-            } else {
-                this.hide()
             }
         },
         _handleKeyDownUp: function(e, originEvent){
             if(e.type === 'keyUp'){
                 originEvent.preventDefault();
             }
-            if(this.selected){
-                this._clear();
-                this.queryData();
-                this.selected = false;
+            if(!this.items) {
+                if(this.options.allowEmptyQuery && this.query === ''){
+                    this.queryData();
+                }
+                return;
             }
-
-            if(!this.items) return;
 
             this.show();
             this.allowMouseMove = false;
@@ -1379,6 +1379,7 @@
             var maxTop = $(window).height() + $(window).scrollTop() - this.$element.outerHeight();
             var top = parseInt(this.$element.css('top'), 10);
             this.$element.css('max-height', top > maxTop ? (Math.max(0, maxTop - top + this.$element.innerHeight()) + 'px') : '');
+            this.trigger('maxHeightChange');
         },
         _handleItemHover: function(){
             $(this.items[this.lastIndex]).removeClass(this.options.itemSelectedClass);
@@ -1397,10 +1398,10 @@
             return tpl.replace(/\{\{classPrefix\}\}/g, this.options.classPrefix);
         }
     })
-    function parseItem(tpl, data, hl){
+    function parseItem(tpl, data, sourceData){
         var re = /(.*?)\{\{([\w\-]+)\}\}(.*?)/g;
         return tpl.replace(re, function(match, p1, p2, p3){
-            return  p1 + (hl ? highlight(data[p2].value, data[p2].hlIndex) : data[p2]) + p3;
+            return  p1 + (data[p2] && data[p2].hlIndex ? highlight(data[p2].value, data[p2].hlIndex) : sourceData[p2]) + p3;
         })
     }
     function highlight(text, hlIndex){
@@ -1481,11 +1482,45 @@
                 inputTpl: '<input type="text">',
                 contactTpl: '<span>{{name}}</span>',
                 removeTpl: '<i data-role="remove" title="删除" class="icon icon-pill-remove"></i>',
-                itemTpl: '<span class="name">{{name}}</span> ({{login}})',
+                itemTpl: function(item){
+                    return [
+                        '<i class="icon icon-collab-',
+                        item.user_count ? 'group' : 'person',
+                        '"></i><span class="name">{{name}}</span><span>({{',
+                        item.user_count ? 'user_count' : 'login',
+                        '}})</span>'
+                    ].join('');
+                },
+                selectTpl: '<div class="{{classPrefix}}"><ul data-role="items"></ul></div>',
                 inputMinWidth: 60,
+                contact_sets: ['person', 'group'],
                 showOnClick: true,
+                delay: 400,
                 multiple: true
             }
+
+
+            if(this.options.multiSelect){
+                this.options.contact_sets = this.options.contact_sets || defaults.contact_sets;
+                defaults.itemTpl = function(item){
+                    return [
+                        '<i class="icon icon-checkbox" ',
+                        item.user_count ? 'uid="g{{id}}" data-type="group"' : 'uid="{{id}}" data-type="person"',
+                        '></i><i class="icon icon-collab-',
+                        item.user_count ? 'group' : 'person',
+                        '"></i><span class="name">{{name}}</span><span>({{',
+                        item.user_count ? 'user_count' : 'login',
+                        '}})</span>'
+                    ].join('');
+                }
+                defaults.selectTpl = [
+                        '<div class="{{classPrefix}}"><ul class="check-all">',
+                        this.options.contact_sets.indexOf('person') > -1 ? '<li><i class="icon icon-checkbox" data-type="person"></i> 全部同事</li>' : '',
+                        this.options.contact_sets.indexOf('group') > -1 ? '<li><i class="icon icon-checkbox" data-type="group"></i> 全部群组</li>' : '',
+                        '</ul><ul data-role="items" class="item-list"></ul></div>'
+                    ].join('');
+            }
+
             var options = this.options = $.extend(defaults, this.options);
             if(!options.contactTpl){
                 throw new Error('ContactSelect Error: contactTpl not specified');
@@ -1505,7 +1540,12 @@
                 selectFirst: options.selectFirst,
                 dataSource: options.data,
                 filter: options.filter,
+                locator: options.locator,
+                selectTpl: options.selectTpl,
                 itemTpl: options.itemTpl,
+                changeOnSelect: false,
+                allowEmptyQuery: options.showOnClick,
+                delay: options.delay,
                 zIndex: 9999,
                 align: {
                     elem: options.alignElement || this.$element,
@@ -1515,9 +1555,92 @@
                 themeClass: 'contact-select',
                 width: $$(options.alignElement)[0] && $$(options.alignElement).innerWidth()
             }).on('selected', function(data){
-                this.reset();
+                if(that.checkbox_remove){
+                    $.each(that.contacts, function(index, item){
+                        if(item.uid === (data.user_count ? 'g' + data.id : data.id)){
+                            that.removeItem(index);
+                            return false;
+                        }
+                    })
+
+                    that.checkbox_remove = false;
+                    return;
+                }
+                if(!this.multiSelect) this.reset();
                 that.insertItem(data);
-            });
+                if(options.multiSelect){
+                    data.uid = data.user_count ? 'g' + data.id : data.id;
+                }
+            }).on('itemClick', function(e){
+                if($(e.target).hasClass('icon-checkbox')){
+                    this.multiSelect = true;
+                    if($(e.target).hasClass('checked')){
+                        that.checkbox_remove = true;
+                        $(e.target).removeClass('checked')
+                    } else {
+                        $(e.target).addClass('checked')
+                    }
+                    that.multiSelected = true;
+                }
+            }).after('show', function(){
+                if(options.multiSelect){
+                    this.$('.item-list .checked').removeClass('checked');
+                    var selector = this;
+                    $.each(that.contacts, function(){
+                        selector.$('i[uid=' + this.uid + ']').addClass('checked')
+                    })
+
+                    $.each(that.options.contact_sets, function(){
+                        if(selector.$('.item-list .icon-checkbox[data-type="' + this + '"]').length){
+                            selector.$('.check-all [data-type="' + this + '"]')[
+                                selector.$('.item-list .icon-checkbox[data-type="' + this + '"]:not(.checked)').length ? 'removeClass' : 'addClass'
+                            ]('checked').parent().show()
+                        } else {
+                            selector.$('.check-all [data-type="' + this + '"]').parent().hide();
+                        }
+                    })
+                }
+            }).after('render', function(){
+                if(options.multiSelect){
+                    var selector = this;
+                    this.$('.check-all li').click(function(ev){
+                        var check_all = $(ev.currentTarget).find('.icon-checkbox').toggleClass('checked');
+                        var all_type = check_all.data('type');
+                        check_all = check_all.hasClass('checked');
+                        selector.$('.item-list .icon-checkbox').each(function(index){
+                            selector.selectedIndex = index;
+                            if($(this).data('type') === all_type){
+                                if(check_all && !$(this).hasClass('checked') || !check_all && $(this).hasClass('checked')){
+                                    $(this).trigger('mousedown', {triggerBy: 'checkAll'});
+                                }
+                            }
+                        })
+                        selector.align();
+                    })
+                    this.$('.item-list').on('mousedown', '.icon-checkbox', function(e, triggerByCheckAll){
+                        if(!triggerByCheckAll){
+                            if($(this).hasClass('checked')){
+                                selector.$('.check-all [data-type="' + $(this).data('type') + '"]').removeClass('checked')
+                            } else {
+                                if(selector.$('.item-list .icon-checkbox[data-type="' + $(this).data('type') + '"]:not(.checked)').length === 1){
+                                    selector.$('.check-all [data-type="' + $(this).data('type') + '"]').addClass('checked')
+                                }
+                            }
+                        }
+                    })
+                }
+            }).on('maxHeightChange', function(){
+                this.$('.item-list').css('height', this.$element.height() - this.$('.check-all').outerHeight());
+            }).after('hide', function(){
+                this.$('.item-list').css('height', 'auto');
+                if(that.multiSelected){
+                    this.reset();
+                    that.multiSelected = false;
+                }
+            }).on('inputEmptied', function(){
+                that.trigger('inputEmptied');
+            })
+
             this.input.on('keydown.contactselect', function(e){
                 if(e.which === 8 && this.value === '' && that.items.length){
                     that.removeItem(that.items.length - 1)
@@ -1526,17 +1649,17 @@
 
             if(this.$element.attr('placeholder')) this.input.attr('placeholder', this.$element.attr('placeholder'));
 
-            if(options.showOnClick){
-                this.input.focus(function(){
-                    that.selector.queryData('');
-                })
-            }
-
             this.render();
         },
         events: {
-            "click": function(){
-                this.input.focus()
+            "click input": function(){
+                if(this.options.showOnClick){
+                    if(this.selector.items){
+                        this.selector.show()
+                    } else {
+                        this.selector.queryData('');
+                    }
+                }
             },
             "click [data-role='remove']": "removeItem"
         },
@@ -1592,7 +1715,7 @@
             this.trigger('remove', index);
         },
         'adjustInputWidth': function(){
-            var wrapWidth = this.$element.width() - 10;
+            var wrapWidth = this.$element.width() - 12;
             var inputWidth = wrapWidth;
             if(this.items.length){
                 var item = $(this.items.slice(-1)[0]);

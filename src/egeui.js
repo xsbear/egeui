@@ -1,9 +1,9 @@
-// EGEUI v0.1.3
+// EGEUI v0.1.4
 
 (function(global, factory){
     // Set up egeui appropriately for the environment.
     if (typeof define === 'function' && define.cmd) {
-        define("lib/egeui/0.1.3/egeui", ["jquery"], function(require, exports, module) {
+        define("lib/egeui/0.1.4/egeui", ["jquery"], function(require, exports, module) {
             var $ = require('jquery');
             module.exports = factory($);
         });
@@ -758,7 +758,7 @@
             this.$element.css({
                 'background-color': options.backgroundColor,
                 'opacity': options.opacity
-            })
+            }).attr('tabIndex', 0);
         }
     })
 
@@ -778,7 +778,8 @@
                 classPrefix: 'egeui-dialog',
                 closeTpl: 'x',
                 title: '',
-                zIndex: 999 + dialogCounter * 2
+                zIndex: 999 + dialogCounter * 2,
+                closeOnEscape: true
                 // visible: true
             };
             var options = this.options = $.extend(defaults, this.options);
@@ -810,12 +811,29 @@
                 })
             }
 
+            if(options.closeOnEscape){
+                this.$element.attr( "tabIndex", -1);
+                var escapeElements = [this.$element];
+                if(options.mask) escapeElements.push(this.mask.$element);
+                var self = this;
+                $.each(escapeElements, function(){
+                    this.keydown(function(ev){
+                        // keyCode 27: Escpae
+                        if(ev.which === 27) {
+                            self.hide();
+                        }
+                    })
+                })
+            }
+
             Dialog.superClass.setup.call(this);
 
             // TODO when content is in document, keep element to origin parentNode before destroy
             this._isTemplate = true;
             dialogCounter++;
-            this.after('destroy', function(){
+            this.after('show', function(){
+                this.$element.focus();
+            }).after('destroy', function(){
                 dialogCounter--;
             })
         },
@@ -846,7 +864,8 @@
                 confirmTpl: '<button class="pure-button button-primary confirm" data-role="confirm">确定</button>',
                 cancelTpl: '<button class="pure-button cancel" data-role="cancel">取消</button>',
                 mask: true,
-                closeTpl: null
+                closeTpl: null,
+                confirmOnEnter: true
             }
             var options = this.options = $.extend(defaults, this.options);
             this.options.content = $(this._parseTpl(this._messageTpl)).append(options.message);
@@ -868,6 +887,14 @@
             ConfirmBox.superClass.setup.call(this);
 
             this.render().show();
+
+            if(options.confirmOnEnter){
+                this.$element.keydown($.proxy(function(ev){
+                    if(ev.which === 13){
+                        this.$('[data-role=confirm]').trigger('click');
+                    }
+                }, this))
+            }
         },
         events: {
             'click [data-role=confirm]': function (e) {
@@ -1333,6 +1360,7 @@
             if(this.items && this.items[this.selectedIndex]){
                 !this.options.submitOnEnter && originEvent.preventDefault();
                 this.trigger('itemSelected');
+                originEvent.stopPropagation();
             }
         },
         _handleKeyDownUp: function(e, originEvent){

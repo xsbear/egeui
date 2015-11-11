@@ -1,9 +1,9 @@
-// EGEUI v0.1.4
+// EGEUI v0.1.5
 
 (function(global, factory){
     // Set up egeui appropriately for the environment.
     if (typeof define === 'function' && define.cmd) {
-        define("lib/egeui/0.1.4/egeui", ["jquery"], function(require, exports, module) {
+        define("lib/egeui/0.1.5/egeui", ["jquery"], function(require, exports, module) {
             var $ = require('jquery');
             module.exports = factory($);
         });
@@ -729,7 +729,8 @@
             var content = this.options.content;
             if(!content && (srcElement.attr('title') || srcElement.attr('data-title'))){
                 content = srcElement.attr('title') || srcElement.attr('data-title');
-                srcElement.removeAttr('title').attr('data-title', content);
+                lteIE9 ? srcElement.attr('title', '') : srcElement.removeAttr('title');
+                srcElement.attr('data-title', content);
             }
             if(!content){
                 throw new Error('Tip Error: content or title not specified.');
@@ -1128,7 +1129,8 @@
                 selectFirst: false,
                 submitOnEnter: false,
                 changeOnSelect: true,
-                delay: 200
+                delay: 200,
+                showMenu: true
             };
             var options = this.options = $.extend(true, defaults, this.options);
 
@@ -1156,7 +1158,7 @@
             AutoComplete.superClass.show.call(this);
 
             this.$element.scrollTop(0);
-            this._adjustMaxHeight();
+            // this._adjustMaxHeight();
         },
         reset: function(){
             if(lteIE9) this.slient = true;
@@ -1191,7 +1193,10 @@
 
             this.dataSource.on('data', function(data){
                 this.data = data;
-                this._fillItems();
+                this.trigger('response', data);
+                if(this.options.showMenu){
+                    this._fillItems();
+                }
             }, this);
 
             if(options.selectFirst){
@@ -1524,7 +1529,8 @@
                 contact_sets: ['person', 'group'],
                 showOnClick: true,
                 delay: 400,
-                multiple: true
+                multiple: true,
+                insertBack: true
             }
 
 
@@ -1590,12 +1596,19 @@
                             return false;
                         }
                     })
-
                     that.checkbox_remove = false;
+                    if(!options.insertBack){
+                        that.trigger('remove', data);
+                    }
                     return;
                 }
                 if(!this.multiSelect) this.reset();
-                that.insertItem(data);
+                if(options.insertBack){
+                    that.insertItem(data);
+                }
+
+                that.trigger('add', data);
+
                 if(options.multiSelect){
                     data.uid = data.user_count ? 'g' + data.id : data.id;
                 }
@@ -1719,7 +1732,6 @@
             } else {
                 this.input.hide();
             }
-            this.trigger('add', data)
             this.contacts.push(data);
         },
         'removeItem': function(e){

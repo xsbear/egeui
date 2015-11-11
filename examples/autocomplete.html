@@ -162,10 +162,13 @@
                     //     data: data,
                     //     locator: ['name', 'email']
                     // },
-                    itemTpl: '{{name}} ({{email}})'
+                    itemTpl: '{{name}} ({{email}})',
+                    // showMenu: false
                 })
                 ac.on('selected', function(data){
                     console.log(data)
+                }).on('response', function(data){
+                    console.log(data);
                 })
 
                 var urlsearch = new egeui.AutoComplete({
@@ -187,7 +190,8 @@
                     contactTpl: '<span>{{name}}</span>',
                     itemTpl: '{{name}} ({{email}})',
                     filter: 'stringMatch',
-                    showAllTrigger: '#showall'
+                    // multiSelect: true,
+                    insertBack: false
                 }).on('add', function(data){
                     console.log(data);
                 }).on('remove', function(data){

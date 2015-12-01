@@ -1,0 +1,232 @@
+<!DOCTYPE html>
+<html>
+   <head>
+        <meta charset="UTF-8">
+        <title>EgeUI Tree examples</title>
+        <style>
+            body {
+                font-size: 12px;
+                line-height: 1.5;
+                font-family: "Lucida Grande", "Lucida Sans Unicode", Helvetica, Arial, Verdana, "Heiti SC", "Microsoft YaHei", "微软雅黑", \5fae\8f6f\96c5\9ed1, "WenQuanYi Micro Hei", \5b8b\4f53, sans-serif;
+            }
+            a {
+                color: #079cda;
+                text-decoration: none;
+                outline: none;
+            }
+            body, div, dl, dt, dd, ul, ol, li, h1, h2, h3, h4, h5, h6, pre, code, form, fieldset, legend, input, textarea, p, blockquote, th, td {
+                margin:0;
+                padding:0;
+            }
+            ol, ul {
+                list-style:none;
+            }
+
+            .icon, .icon-type-s, .icon-type-m, .icon-type-l {
+                display: inline-block;
+                *zoom:1;
+                text-align: center;
+                vertical-align: middle;
+                background-repeat: no-repeat;
+            }
+
+            .icon {
+                background-image: url(all-icons.png);
+                width: 25px;
+                height: 25px;
+            }
+
+            .icon-tree-arrow-right,
+            .icon-tree-collapse {
+              background-position: 0 -750px;
+            }
+            .icon-tree-arrow-down,
+            .icon-tree-expand {
+              background-position: -50px -750px;
+            }
+            .icon-dropdown-arrow {
+              background-position: -100px -750px
+            }
+            .icon-checkbox {
+              background-position: 0 -450px;
+            }
+            .icon-checkbox.checked {
+              background-position: -25px -450px;
+            }
+
+            /* egeui tree */
+            .egeui-tree {
+                font-size: 14px;
+            }
+            /*.egeui-tree .node-list {
+                display: block;
+            }*/
+            .egeui-tree .node-list li {
+                line-height: 30px;
+                cursor: pointer;
+            }
+            .egeui-tree .node-list b {
+                display: inline-block;
+                width: 15px;
+                height: 15px;
+            }
+            .egeui-tree .node-list b.leaf {
+                width: 25px;
+            }
+            .egeui-tree .node-list li .item {
+                -webkit-user-select: none;
+                -moz-user-select: none;
+                -ms-user-select: none;
+                user-select: none;
+            }
+            .egeui-tree .node-list li .item .tree-switcher {
+                /*margin-right: 5px;*/
+            }
+            .egeui-tree .node-list li .item:hover {
+                background-color: #f2f2f2;
+            }
+            .egeui-tree .node-list li .item.highlight {
+                background-color: #e6e6e6;
+            }
+            .egeui-tree .node.expand > .node-list {
+                display: block;
+            }
+            .egeui-tree .node.collapse .node-list {
+                display: none;
+            }
+            body {
+                padding: 100px 0 0 200px;
+            }
+            .department-tree {
+                margin-top: 20px;
+                width: 400px;
+            }
+            .department-tree .item {
+                position: relative;
+            }
+            .department-tree .item a {
+                position: absolute;
+                right: 0;
+            }
+            .department-tree .item .edit {
+                right: 50px;
+            }
+
+        </style>
+    </head>
+    <body>
+
+        <button id="add_node">add node</button>
+        <button id="remove_node">remove node</button>
+        <button id="set_node">change node name</button>
+        <button id="check_node">check_node</button>
+        <button id="check_all_nodes">check all nodes</button>
+        <button id="get_checked_nodes">get checked nodes</button>
+        <button id="redraw">re draw</button>
+        <div class="department-tree"></div>
+
+        <script type="text/javascript" src="jquery-1.11.1.min.js"></script>
+        <script type="text/javascript" src="../src/egeui.js"></script>
+        <script type="text/javascript">
+            $(function() {
+
+                var depart_btns = $('<a class="edit" href="#">编辑</a><a class="del" href="#">删除</a>').appendTo('body');
+                var dTree = new egeui.Tree({
+                    element: '.department-tree',
+                    data: data.departments,
+                    nodeTpl: '<span class="name" data-role="name">{{name}}</span><span class="user_count">(<span data-role="user_count">22</span>)</span>',
+                    nodeFields: ['id', 'name', 'parent_id', 'user_count'],
+                    expandDepth: 1,
+                    checkbox: true
+                }).on('nodeSelected', function(node_data){
+                    console.log(node_data);
+                }).on('nodeEnter', function(nodeWrap){
+                    nodeWrap.append(depart_btns)
+                }).on('checked', function(node){
+                    console.log(node);
+                }).on('unChecked', function(node){
+                    console.log(node);
+                })
+
+                dTree.$element.on('click', '.item a', function(ev){
+                    ev.stopPropagation();
+                })
+
+                $('#add_node').click(function(){
+                    var node = dTree.getSelectedNode();
+                    console.log(node);
+                    if(node){
+                        dTree.addNode({
+                            id: 322212,
+                            name: 'New department',
+                            parent_id: node.id,
+                            user_count: 0
+                        }, node)
+                    }
+                })
+
+                $('#remove_node').click(function(){
+                    // dTree.selectNode(106);
+                    var node = dTree.getSelectedNode();
+                    console.log(node);
+                    if(node){
+                        dTree.removeNode(node);
+                    }
+                })
+
+                $('#set_node').click(function(){
+                    var node = dTree.getSelectedNode();
+                    console.log(node);
+                    if(node){
+                        dTree.setNode(node, {name: 'xxxxxxx', user_count: 1000});
+                    }
+                })
+
+                $('#get_checked_nodes').click(function(){
+                    var nodes = dTree.getCheckedNodes();
+                    console.log(nodes);
+                })
+
+                $('#check_node').click(function(){
+                    dTree.checkNode(106);
+                })
+                $('#check_all_nodes').click(function(){
+                    dTree.checkAllNodes(true);
+                })
+                $('#redraw').click(function(){
+                    dTree.reDraw(data.departments);
+                })
+
+            });
+
+            var data = {
+                "departments": {
+                    "id": 65,
+                    "name": "杭州亿方云网络科技有限公司",
+                    "path": "杭州亿方云网络科技有限公司",
+                    "user_count": 13,
+                    "parent_id": "0",
+                    "director": {
+                        "id": 1,
+                        "name": "白的瞎了眼",
+                        "login": "admin@admin.com",
+                        "profile_pic_key": "ce7ec2b586698ce17b30283a864302d3",
+                        "enterprise_id": 1
+                    },
+                    "folder": {
+                        "type": "folder",
+                        "id": 257230,
+                        "name": "杭州亿方云网络科技有限公司"
+                    },
+                    "common_folder": {
+                        "type": "folder",
+                        "id": 257231,
+                        "name": "杭州亿方云网络科技有限公司公共资料库"
+                    },
+                    "children": []
+                },
+                "success": true
+            }
+        </script>
+    </body>
+</html>

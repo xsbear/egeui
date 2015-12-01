@@ -1,9 +1,9 @@
-// EGEUI v0.1.5
+// EGEUI v0.1.6
 
 (function(global, factory){
     // Set up egeui appropriately for the environment.
     if (typeof define === 'function' && define.cmd) {
-        define("lib/egeui/0.1.5/egeui", ["jquery"], function(require, exports, module) {
+        define("lib/egeui/0.1.6/egeui", ["jquery"], function(require, exports, module) {
             var $ = require('jquery');
             module.exports = factory($);
         });
@@ -317,9 +317,8 @@
                 this.rendered = true;
             }
             this.trigger('before', 'render')
-            var parentNode = $$(this.options.parentNode);
             if(!isInDocument(this.element)){
-                this.$element.appendTo(parentNode);
+                this.$element.appendTo(this.options.parentNode);
             }
             this.trigger('after', 'render');
 
@@ -871,13 +870,13 @@
             var options = this.options = $.extend(defaults, this.options);
             this.options.content = $(this._parseTpl(this._messageTpl)).append(options.message);
             var actions = $(this._parseTpl(this._actionTpl));
-            if(options.confirmTpl) {
-                actions.append(options.confirmTpl);
-                if(options.confirmText) actions.find('[data-role=confirm]').text(options.confirmText);
-            }
             if(options.cancelTpl){
                 actions.append(options.cancelTpl);
                 if(options.cancelText) actions.find('[data-role=cancel]').text(options.cancelText);
+            }
+            if(options.confirmTpl) {
+                actions.append(options.confirmTpl);
+                if(options.confirmText) actions.find('[data-role=confirm]').text(options.confirmText);
             }
             if(!options.title){
                 options.themeClass = 'no-title';
@@ -941,7 +940,7 @@
                 if(!$.isFunction(this.filter)){
                     this.filter = Filters[this.filter]
                     if(!this.filter){
-                        throw new Error('Specified filter is not existed.')
+                        throw new Error('DataSource Error: Specified filter is not existed.')
                     }
                 }
                 this._initDataSource()
@@ -986,7 +985,7 @@
             $.ajax(url, options).success(function (data) {
                 if(that.locator){
                     if($.isFunction(that.locator)){
-                        data = that.locator(data);
+                        data = that.locator(data, query);
                     } else {
                         data = data[that.locator];
                     }
@@ -1154,7 +1153,7 @@
         },
         show: function(){
             if(this.visible) return;
-            if(this._isEmpty() && !this.options.searchMoreTpl) return;
+            if(this._isEmpty() && !this.options.searchMoreTpl && !this.options.allowEmptyShow) return;
             AutoComplete.superClass.show.call(this);
 
             this.$element.scrollTop(0);
@@ -1231,11 +1230,7 @@
                     }
                     this.trigger('selected', selectedData.value || selectedData);
                 }
-                if(this.multiSelect){
-                    this.multiSelect = false;
-                } else {
-                    this.hide();
-                }
+                this.hide();
             });
 
             this.$('[data-role=items]').on('mouseenter.autocomplete', 'li', wrapFn(function(ev){
@@ -1255,7 +1250,6 @@
                     };
                 }
                 e.preventDefault();
-                this.trigger('itemClick', e);
                 this.trigger('itemSelected');
             }, this));
 
@@ -1425,7 +1419,7 @@
         _clear: function () {
             this.$('[data-role=items]').empty();
             delete this.items;
-            this.selectedIndex =  -1;
+            this.selectedIndex = -1;
         },
         _parseTpl: function(tpl){
             return tpl.replace(/\{\{classPrefix\}\}/g, this.options.classPrefix);
@@ -1509,10 +1503,10 @@
     /* Contacts WIDGET DEFINITION
      * ====================== */
     var ContactSelect = Widget.extend({
-        setup: function(){
-            Overlay.superClass.setup.call(this);
-            var defaults = {
-                inputTpl: '<input type="text">',
+        setup: function(defaults){
+            defaults = $.extend({
+                idField: 'id',
+                inputTpl: '<input type="text" autocomplete="off">',
                 contactTpl: '<span>{{name}}</span>',
                 removeTpl: '<i data-role="remove" title="删除" class="icon icon-pill-remove"></i>',
                 itemTpl: function(item){
@@ -1526,34 +1520,11 @@
                 },
                 selectTpl: '<div class="{{classPrefix}}"><ul data-role="items"></ul></div>',
                 inputMinWidth: 60,
-                contact_sets: ['person', 'group'],
                 showOnClick: true,
                 delay: 400,
                 multiple: true,
                 insertBack: true
-            }
-
-
-            if(this.options.multiSelect){
-                this.options.contact_sets = this.options.contact_sets || defaults.contact_sets;
-                defaults.itemTpl = function(item){
-                    return [
-                        '<i class="icon icon-checkbox" ',
-                        item.user_count ? 'uid="g{{id}}" data-type="group"' : 'uid="{{id}}" data-type="person"',
-                        '></i><i class="icon icon-collab-',
-                        item.user_count ? 'group' : 'person',
-                        '"></i><span class="name">{{name}}</span><span>({{',
-                        item.user_count ? 'user_count' : 'login',
-                        '}})</span>'
-                    ].join('');
-                }
-                defaults.selectTpl = [
-                        '<div class="{{classPrefix}}"><ul class="check-all">',
-                        this.options.contact_sets.indexOf('person') > -1 ? '<li><i class="icon icon-checkbox" data-type="person"></i> 全部同事</li>' : '',
-                        this.options.contact_sets.indexOf('group') > -1 ? '<li><i class="icon icon-checkbox" data-type="group"></i> 全部群组</li>' : '',
-                        '</ul><ul data-role="items" class="item-list"></ul></div>'
-                    ].join('');
-            }
+            }, defaults);
 
             var options = this.options = $.extend(defaults, this.options);
             if(!options.contactTpl){
@@ -1579,6 +1550,7 @@
                 itemTpl: options.itemTpl,
                 changeOnSelect: false,
                 allowEmptyQuery: options.showOnClick,
+                allowEmptyShow: options.showOnClick,
                 delay: options.delay,
                 zIndex: 9999,
                 align: {
@@ -1589,95 +1561,17 @@
                 themeClass: 'contact-select',
                 width: $$(options.alignElement)[0] && $$(options.alignElement).innerWidth()
             }).on('selected', function(data){
-                if(that.checkbox_remove){
-                    $.each(that.contacts, function(index, item){
-                        if(item.uid === (data.user_count ? 'g' + data.id : data.id)){
-                            that.removeItem(index);
-                            return false;
-                        }
-                    })
-                    that.checkbox_remove = false;
-                    if(!options.insertBack){
-                        that.trigger('remove', data);
+                if(!that.multiSelected){
+                    if(this.query !== ''){
+                        this.reset();
                     }
-                    return;
+                } else {
+                    that.multiSelected = false;
                 }
-                if(!this.multiSelect) this.reset();
                 if(options.insertBack){
                     that.insertItem(data);
                 }
-
                 that.trigger('add', data);
-
-                if(options.multiSelect){
-                    data.uid = data.user_count ? 'g' + data.id : data.id;
-                }
-            }).on('itemClick', function(e){
-                if($(e.target).hasClass('icon-checkbox')){
-                    this.multiSelect = true;
-                    if($(e.target).hasClass('checked')){
-                        that.checkbox_remove = true;
-                        $(e.target).removeClass('checked')
-                    } else {
-                        $(e.target).addClass('checked')
-                    }
-                    that.multiSelected = true;
-                }
-            }).after('show', function(){
-                if(options.multiSelect){
-                    this.$('.item-list .checked').removeClass('checked');
-                    var selector = this;
-                    $.each(that.contacts, function(){
-                        selector.$('i[uid=' + this.uid + ']').addClass('checked')
-                    })
-
-                    $.each(that.options.contact_sets, function(){
-                        if(selector.$('.item-list .icon-checkbox[data-type="' + this + '"]').length){
-                            selector.$('.check-all [data-type="' + this + '"]')[
-                                selector.$('.item-list .icon-checkbox[data-type="' + this + '"]:not(.checked)').length ? 'removeClass' : 'addClass'
-                            ]('checked').parent().show()
-                        } else {
-                            selector.$('.check-all [data-type="' + this + '"]').parent().hide();
-                        }
-                    })
-                }
-            }).after('render', function(){
-                if(options.multiSelect){
-                    var selector = this;
-                    this.$('.check-all li').click(function(ev){
-                        var check_all = $(ev.currentTarget).find('.icon-checkbox').toggleClass('checked');
-                        var all_type = check_all.data('type');
-                        check_all = check_all.hasClass('checked');
-                        selector.$('.item-list .icon-checkbox').each(function(index){
-                            selector.selectedIndex = index;
-                            if($(this).data('type') === all_type){
-                                if(check_all && !$(this).hasClass('checked') || !check_all && $(this).hasClass('checked')){
-                                    $(this).trigger('mousedown', {triggerBy: 'checkAll'});
-                                }
-                            }
-                        })
-                        selector.align();
-                    })
-                    this.$('.item-list').on('mousedown', '.icon-checkbox', function(e, triggerByCheckAll){
-                        if(!triggerByCheckAll){
-                            if($(this).hasClass('checked')){
-                                selector.$('.check-all [data-type="' + $(this).data('type') + '"]').removeClass('checked')
-                            } else {
-                                if(selector.$('.item-list .icon-checkbox[data-type="' + $(this).data('type') + '"]:not(.checked)').length === 1){
-                                    selector.$('.check-all [data-type="' + $(this).data('type') + '"]').addClass('checked')
-                                }
-                            }
-                        }
-                    })
-                }
-            }).on('maxHeightChange', function(){
-                this.$('.item-list').css('height', this.$element.height() - this.$('.check-all').outerHeight());
-            }).after('hide', function(){
-                this.$('.item-list').css('height', 'auto');
-                if(that.multiSelected){
-                    this.reset();
-                    that.multiSelected = false;
-                }
             }).on('inputEmptied', function(){
                 that.trigger('inputEmptied');
             })
@@ -1713,7 +1607,7 @@
         },
         'insertItem': function(data){
             for (var i = this.contacts.length - 1; i >= 0; i--) {
-                if(this.contacts[i].id == data.id){
+                if(this.contacts[i][this.options.idField] == data[this.options.idField]){
                     return;
                 }
             }
@@ -1752,7 +1646,7 @@
                 this.input.show();
             }
             this.adjustInputWidth();
-            this.trigger('remove', index);
+            this.trigger('remove', index, contact);
         },
         'adjustInputWidth': function(){
             var wrapWidth = this.$element.width() - 12;
@@ -1774,6 +1668,256 @@
     })
 
 
+    /* Tree WIDGET DEFINITION
+     * ====================== */
+    var Tree = Widget.extend({
+        _nodeListTpl: '<ul class="node-list" data-role="nodes"></ul>',
+        _nodeWrapTpl: '<li class="node" data-role="node"><div class="item" data-role="item"></div></li>',
+        _switchTpl: '<i class="tree-switcher icon icon-tree-{{switch_class}}" data-role="switcher"></i>',
+        _checkboxTpl: '<i class="icon icon-checkbox" data-role="checkbox"></i>',
+
+        setup: function(){
+            var defaults = {
+                nodeTpl: '<span class="name" data-role="name">{{name}}</span>',
+                childField: 'children',
+                nodeFields: [],
+                idField: 'id',
+                classPrefix: 'egeui-tree',
+                expandDepth: 0
+            };
+
+            var options = this.options = $.extend(defaults, this.options);
+
+            if(!options.nodeTpl){
+                throw new Error('Tree Error: nodeTpl not specified');
+            }
+            if(!options.data){
+                throw new Error('Tree Error: data not specified');
+            }
+
+            Tree.superClass.setup.call(this);
+
+            this.render();
+        },
+        render: function(){
+            Tree.superClass.render.call(this);
+            this.$element.addClass(this.options.classPrefix);
+            var data = this._normalizeData(this.options.data);
+            this._renderNodes(data, 1, this.$element);
+        },
+
+        reDraw: function(data){
+            this.$element.empty();
+            data = this._normalizeData(data);
+            this._renderNodes(data, 1, this.$element);
+        },
+
+        events: {
+            'click [data-role="switcher"]': function(ev){
+                ev.stopPropagation();
+                var $node = $(ev.target).parent().parent();
+                this._toggleNode($node);
+            },
+            'click [data-role="item"]': function(ev){
+                this._selectNode($(ev.currentTarget));
+            },
+            'mouseenter [data-role="item"]': function(ev){
+                var $node = $(ev.currentTarget);
+                this.trigger('nodeEnter', $node);
+            },
+            'mouseleave [data-role="item"]': function(ev){
+                var $node = $(ev.currentTarget);
+                this.trigger('nodeLeave', $node);
+            },
+            'click [data-role="checkbox"]': function(ev){
+                ev.stopPropagation();
+                this._checkNode($(ev.target).parent())
+            }
+        },
+
+        getSelectedNode: function(){
+            return this.$('.node .highlight').data('nodeData');
+        },
+
+        findNodeById: function(id){
+            return this.$('#etn' + id).data('nodeData');
+        },
+
+        getCheckedNodes: function(){
+            return $.map(this.$('i[data-role="checkbox"].checked'), function(node){
+                return $(node).parent().data('nodeData');
+            })
+        },
+
+        checkNode: function(node, checked, silent){
+            var id = this._getNodeId(node);
+            this._checkNode(this.$('#etn' + id), checked, silent);
+        },
+
+        checkAllNodes: function(checked, silent){
+            var self = this;
+            this.$('[data-role="item"]').each(function(){
+                self._checkNode($(this), checked, silent)
+            })
+        },
+
+        selectNode: function(node, silent){
+            var id = this._getNodeId(node);
+            this._selectNode(this.$('#etn' + id), silent);
+        },
+
+        setNode: function(node, attributes){
+            var id = this._getNodeId(node);
+            var $node = this.$('#etn' + id);
+            var nodeData = $node.data('nodeData');
+            $.each(attributes, function(attr, val){
+                nodeData[attr] = val;
+                $node.find('[data-role=' + attr + ']').text(val);
+            })
+            $node.data('nodeData', nodeData);
+        },
+
+        addNode: function(data, parentNode){
+            var $parentNode = this.$('#etn' + parentNode[this.options.idField]);
+            if(!$parentNode[0]) return;
+            var depth = $parentNode.data('level') + 1;
+            $parentNode = $parentNode.parent();
+            this._expandParent($parentNode);
+            this._renderNodes([data], depth, $parentNode);
+        },
+
+        removeNode: function(node){
+            var id = this._getNodeId(node);
+            var $node = this.$('#etn' + id).parent();
+            if(!$node[0]) return;
+            if(!$node.siblings().length){
+                $node.parent().prev('[data-role="item"]').prepend('<b class="leaf"></b>')
+                .find('[data-role="switcher"]').remove();
+            }
+            $node.remove();
+        },
+
+        _getNodeId: function(node){
+            var id = node;
+            if($.isPlainObject(node)){
+                id = node[this.options.idField];
+            }
+            return id;
+        },
+
+        _checkNode: function($node, checked, silent){
+            var checkbox = $node.find('[data-role="checkbox"]');
+            if(checked !== undefined && checkbox.hasClass('checked') === checked){
+                return;
+            }
+            if(checked === undefined){
+                checked = !checkbox.hasClass('checked')
+            }
+            if(checked){
+                checkbox.addClass('checked');
+                if(!silent) this.trigger('checked', $node.data('nodeData'))
+            } else {
+                checkbox.removeClass('checked');
+                if(!silent) this.trigger('unChecked', $node.data('nodeData'))
+            }
+        },
+
+        _selectNode: function($node, silent){
+            this.$('.highlight').removeClass('highlight');
+            $node.addClass('highlight');
+            if(!silent){
+                this.trigger('nodeSelected', $node.data('nodeData'));
+            }
+        },
+
+        _toggleNode: function($node, switcher){
+            var toggle_old = 'collapse', toggle_new = 'expand';
+            if($node.hasClass('expand')){
+                toggle_old = 'expand', toggle_new = 'collapse';
+            }
+            if(switcher && switcher === toggle_old) return;
+            $node.removeClass(toggle_old).addClass(toggle_new)
+            .children('[data-role="item"]').find('.tree-switcher').removeClass('icon-tree-' + toggle_old)
+            .addClass('icon-tree-' + toggle_new);
+        },
+
+        _expandParent: function($node){
+            var $item = $node.children('[data-role="item"]');
+            if(!$item.find('[data-role="switcher"]')[0]){
+                $item.find('.leaf').remove();
+                var switch_el = this._switchTpl.replace('{{switch_class}}', 'expand');
+                if($item.find('b')[0]){
+                    $item.find('b:last').after(switch_el)
+                } else {
+                    $item.prepend(switch_el)
+                }
+            }
+            this._toggleNode($node, 'expand')
+        },
+
+        _normalizeData: function(data){
+            if(!$.isArray(data)){
+                if(data[this.options.childField] === undefined){
+                    data[this.options.childField] = [];
+                }
+                data = [data];
+            }
+            return data;
+        },
+
+        _renderNodes: function(nodes, depth, $parentNode){
+            var switcher = this.options.expandDepth === 0 || depth <= this.options.expandDepth ? 'expand' : 'collapse';
+
+            var $nodeList = $(this._nodeListTpl).appendTo($parentNode);
+
+            var switch_el = this._switchTpl.replace('{{switch_class}}', switcher);
+
+            var checkbox_el = this.options.checkbox ? this._checkboxTpl : '';
+
+            var nodeTpl = this.options.nodeTpl,
+                    that = this;
+                      re = /\{\{([\w\-]+)\}\}/g;
+            $.map(nodes, function(nodeData){
+
+                var node_el = nodeTpl.replace(re, function(match, p1){
+                    return nodeData[p1];
+                })
+                var $node = $(that._nodeWrapTpl).appendTo($nodeList).addClass(switcher);
+                var $item = $node.children().append(Array(depth).join('<b></b>')).attr('data-level', depth);
+                that._bindNodeData($item, nodeData);
+                if(nodeData[that.options.childField]){
+                    $item.append(switch_el);
+                } else {
+                    $item.prepend('<b class="leaf"></b>');
+                }
+                $item.append(checkbox_el + node_el);
+
+                if(nodeData[that.options.childField]){
+                    that._renderNodes(nodeData[that.options.childField], depth + 1, $node);
+                }
+            });
+        },
+
+        _bindNodeData: function($node, data){
+            if(this.options.dataProcess){
+                data = this.options.dataProcess(data);
+            }
+            var nodeData = {};
+            if(this.options.nodeFields.length){
+                $.map(this.options.nodeFields, function(field){
+                    nodeData[field] = data[field];
+                })
+            } else {
+                nodeData = data;
+            }
+            if(this.options.idField){
+                $node.attr('id', 'etn' + data[this.options.idField]);
+            }
+            $node.data('nodeData', nodeData);
+        }
+    })
+
+
     var pub = {};
     pub.Overlay = Overlay;
     pub.Popup = Popup;
@@ -1782,6 +1926,7 @@
     pub.ConfirmBox = ConfirmBox;
     pub.AutoComplete = AutoComplete;
     pub.ContactSelect = ContactSelect;
+    pub.Tree = Tree;
 
     return pub;
 }));

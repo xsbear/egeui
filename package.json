@@ -4,8 +4,8 @@
   "description": "A small ui library from egeio",
   "version": "0.1.6",
   "author": {
-    "name": "huangwenping",
-    "email": "huangwenping@egeio.com"
+    "name": "xsbear",
+    "email": "xsbear@gmail.com"
   },
   "devDependencies": {
     "grunt": "~0.4.5",

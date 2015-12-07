@@ -211,8 +211,12 @@
     var Base = function(){}
     Base.prototype = {
         on: function(event, fn, context){
-            var events = this._getEvents(event, 'on');
-            events.push([fn, context || this]);
+            var event_arr = event.split(/\s+/);
+            var that = this;
+            $.each(event_arr, function(i, ev){
+                var events = that._getEvents(ev, 'on');
+                events.push([fn, context || that]);
+            });
             return this;
         },
         before: function(event, fn, context){
@@ -1111,15 +1115,93 @@
         }
     }
 
-    var EVENT_NAMESPACE_AUTOCOMPLETE = '.egeui-autocomplete'
+
+    // Input widget start ==================== //
+    function wrapFn(fn, context) {
+        return function () {
+            fn.apply(context, arguments);
+        }
+    }
+    var lteIE9 = /\bMSIE [6789]\.0\b/.test(navigator.userAgent);
+    // bind text change event
+    function bindTextchange(element){
+        if (lteIE9) {
+            var elementValue = element.value;
+            element.attachEvent("onpropertychange", function(ev){
+                if (ev.propertyName !== "value") return;
+                var value = ev.srcElement.value;
+                if (value === elementValue) return;
+                elementValue = value;
+                $(element).trigger("textchange");
+            });
+            $(element).on("selectionchange keyup keydown", function() {
+                if (element.value !== elementValue) {
+                    elementValue = element.value;
+                    $(element).trigger("textchange");
+                }
+            });
+        } else {
+            $(element).on("input", function(e) {
+                // if (element.nodeName !== "TEXTAREA") {
+                $(element).trigger("textchange");
+                // }
+            });
+        }
+    }
+    var specialKeyCodeMap = {
+        // 9: 'tab',
+        27: 'esc',
+        // 37: 'left',
+        // 39: 'right',
+        13: 'enter',
+        38: 'up',
+        40: 'down'
+    };
+
+    /* INPUT WIDGET DEFINITION
+     * provide behave autocomplete trigger element
+     * ====================== */
+    var Input = Widget.extend({
+        setup: function(){
+            Input.superClass.setup.call(this);
+
+            this.render();
+            bindTextchange(this.element);
+        },
+        events: {
+            'textchange': function(ev){
+                var text = $(ev.target).val().replace(/^\s*/, '');
+                if(this.options.delay){
+                    this.delayTimer && clearTimeout(this.delayTimer);
+                    this.delayTimer = setTimeout(wrapFn(function(){
+                        this.trigger('change', text);
+                        this.delayTimer = null;
+                    }, this), this.options.delay)
+                } else {
+                    this.trigger('change', text)
+                }
+            },
+            'keydown': function(ev){
+                var keyName = specialKeyCodeMap[ev.which];
+                if (keyName) {
+                    var eventKey = 'key' + capitalize(keyName);
+                    this.trigger(eventKey, keyName, ev)
+                }
+            },
+            'blur': function(){
+                this.trigger('blur');
+            }
+        }
+    })
+
     /* AutoComplete WIDGET DEFINITION
      * ====================== */
     var AutoComplete = Overlay.extend({
-        _selectTpl: '<div class="{{classPrefix}}"><ul data-role="items"></ul></div>',
+        _selectTpl: '<div class="{{classPrefix}}"><ul data-role="items" class="item-list"></ul></div>',
         _itemWrapTpl: '<li class="{{classPrefix}}-item" data-role="item">{{item}}</li>',
 
         setup: function(){
-            // other optiosn: themeClass itemTpl
+            // other option: themeClass itemTpl
             var defaults = {
                 align: {pos: 'bottom', collision: 'none'},
                 classPrefix: 'egeui-select',
@@ -1138,17 +1220,31 @@
             //     this.$element.css('width', options.width)
             // }
             this._itemWrapTpl = this._parseTpl(this._itemWrapTpl);
-            options.align.elem = options.align.elem || options.trigger;
+            if(options.align){
+                options.align.elem = options.align.elem || options.trigger;
+            }
 
             AutoComplete.superClass.setup.call(this);
 
-            this.dataSource =  new DataSource({
-                source: options.dataSource,
-                filter: options.filter,
-                locator: options.locator,
-                valueField: options.valueField
-            })
+            if(options.dataSource){
+                this.dataSource =  new DataSource({
+                    source: options.dataSource,
+                    filter: options.filter,
+                    locator: options.locator,
+                    valueField: options.valueField
+                });
+            }
 
+            if(options.inputAdapter){
+                this.input = options.inputAdapter;
+            } else {
+                this.input = new Input({
+                    element: options.trigger,
+                    delay: options.delay
+                });
+            }
+
+            this._bindInputEvents();
             this._bindEvents();
         },
         show: function(){
@@ -1160,16 +1256,16 @@
             // this._adjustMaxHeight();
         },
         reset: function(){
-            if(lteIE9) this.slient = true;
+            if(lteIE9) this.silent = true;
             if(this.query !== ''){
-                $$(this.options.trigger).val(this.query = '');
+                this.input.$element.val(this.query = '');
                 this._clear();
             }
         },
         destroy: function(){
             this.dataSource = null;
             this.data = null;
-            $$(this.options.trigger).off();
+            this.input.destroy();
             this._clear();
             AutoComplete.superClass.destroy.call(this);
         },
@@ -1178,32 +1274,97 @@
         lastIndex: -1,
         selectedIndex: -1,
         allowMouseMove: true,
+
+        events: {
+            'mouseenter [data-role=items] li': function(ev){
+                if(!this.allowMouseMove){
+                    this.allowMouseMove = true;
+                    return;
+                }
+                this.lastIndex = this.selectedIndex;
+                this.selectedIndex = this.items.index(ev.currentTarget);
+                this.trigger('indexChange');
+            },
+            'mousedown [data-role=items] li': function(ev){
+                if (lteIE9) {
+                    var trigger = this.input.element;
+                    trigger.onbeforedeactivate = function () {
+                        window.event.returnValue = false;
+                        trigger.onbeforedeactivate = null;
+                    };
+                }
+                ev.preventDefault();
+                this.trigger('itemSelected');
+            },
+            'mousedown': function(ev){
+                if(!$(ev.target).closest("[data-role=items] [data-role=item]" ).length) {
+                    this.cancelBlur = true;
+                    var that = this;
+                    setTimeout(function(){
+                        delete that.cancelBlur;
+                    }, 50)
+                }
+            }
+        },
+
         queryData: function(query){
             if(!this.options.allowEmptyQuery && query === undefined && this.query === ''){
                 this.data = [];
+                this.hide();
                 return;
             }
             this.dataSource.abort();
             this.dataSource.getData(query || this.query)
         },
 
+        _bindInputEvents: function(){
+            this.input.on('change', function(query){
+                if(lteIE9 && this.silent){
+                    this.silent = false;
+                    return;
+                }
+                // TextComplete could search same query everytime
+                if(!this.options.isTextComplete){
+                    if(compare(this.query, query)) return;
+                }
+                this.query = query;
+                this.queryData();
+            }, this).on('blur', function(){
+                if(this.cancelBlur) {
+                    var $input = this.input.$element;
+                    setTimeout(function(){
+                        $input.focus()
+                    }, 50);
+                    return;
+                }
+                this.hide();
+            }, this).on('keyDown keyUp', function(keyName, originEvent){
+                if(this.options.isTextComplete && !this.visible) return;
+                originEvent.preventDefault();
+                this._handleKeyDownUp(keyName);
+            }, this)
+            .on('keyEnter', this._handleKeyEnter, this)
+            .on('keyEsc', this.hide, this);
+        },
+
         _bindEvents: function(){
             var options = this.options;
 
-            this.dataSource.on('data', function(data){
-                this.data = data;
-                this.trigger('response', data);
-                if(this.options.showMenu){
-                    this._fillItems();
-                }
-            }, this);
-
-            if(options.selectFirst){
-                this.after('show', function(){
-                    this.selectedIndex = 0;
-                    this.trigger('indexChange');
-                });
+            if(this.dataSource){
+                this.dataSource.on('data', function(data){
+                    this.data = data;
+                    this.trigger('response', data);
+                    if(this.options.showMenu){
+                        this._clear();
+                        if(this.data.length){
+                            this._fillItems();
+                        } else {
+                            this.hide();
+                        }
+                    }
+                }, this);
             }
+
             this.after('hide', function(){
                 if(this.items){
                     this.lastIndex = this.selectedIndex;
@@ -1211,6 +1372,7 @@
                     this.trigger('indexChange');
                 }
             });
+
             this.on('indexChange', this._handleItemHover)
             .on('itemSelected', function(){
                 if(this.selectedIndex >= this.data.length){
@@ -1224,36 +1386,14 @@
                 } else {
                     if(this.options.changeOnSelect){
                         var val = selectedData[this.dataSource.valueField || 'value'] || selectedData;
-                        if(lteIE9) this.slient = true;
-                        $$(options.trigger).val(val);
+                        if(lteIE9) this.silent = true;
+                        this.input.$element.val(val);
                         this.query = val;
                     }
                     this.trigger('selected', selectedData.value || selectedData);
                 }
                 this.hide();
             });
-
-            this.$('[data-role=items]').on('mouseenter.autocomplete', 'li', wrapFn(function(ev){
-                if(!this.allowMouseMove){
-                    this.allowMouseMove = true;
-                    return;
-                }
-                this.lastIndex = this.selectedIndex;
-                this.selectedIndex = this.items.index(ev.currentTarget);
-                this.trigger('indexChange');
-            }, this)).on('mousedown.autocomplete', 'li', wrapFn(function(e){
-                if (lteIE9) {
-                    var trigger = $$(this.options.trigger)[0];
-                    trigger.onbeforedeactivate = function () {
-                        window.event.returnValue = false;
-                        trigger.onbeforedeactivate = null;
-                    };
-                }
-                e.preventDefault();
-                this.trigger('itemSelected');
-            }, this));
-
-            this._bindTrigger();
         },
 
         _fillItems: function(){
@@ -1269,7 +1409,12 @@
                 .appendTo(this.$('[data-role=items]')).removeAttr('data-role').addClass('search-more');
                 this.items.push(moreItem[0]);
             }
+            if(this.options.selectFirst){
+                this.selectedIndex = 0;
+                this.trigger('indexChange');
+            }
             this.show()
+            this.trigger('itemsChange');
         },
         _renderItem: function (item){
             if(item.value && !$.isPlainObject(item.value)){
@@ -1280,92 +1425,16 @@
                 return item;
             }
         },
-        // bind event
-        _bindTrigger: function(){
-            var trigger = $$(this.options.trigger)[0];
-            var that = this;
 
-            bindTextchange(trigger);
-
-            var queryTimer;
-            $(trigger).on('textchange.autocomplete', function(ev){
-                if(lteIE9 && that.slient){
-                    that.slient = false;
-                    return;
-                }
-
-                var query_new = $(ev.target).val().replace(/^\s*/, '');
-
-                if(query_new === ''){
-                    that.trigger('inputEmptied');
-                }
-
-                if(compare(that.query, query_new)) return;
-                that.query = query_new;
-
-                queryTimer && clearTimeout(queryTimer);
-                queryTimer = setTimeout(function(){
-                    that._clear();
-                    that.hide();
-                    that.queryData();
-
-                    queryTimer = null;
-                }, that.options.delay)
-            }).on('keydown.autocomplete', wrapFn(this._handleKeydown, this))
-            .on('keyDown keyUp', wrapFn(this._handleKeyDownUp, this))
-            .on('keyEnter', wrapFn(this._handleKeyEnter, this))
-            .on('keyEsc', wrapFn(this.hide, this));
-
-            acBindEvent('blur', trigger, function(){
-                if(that.cancelBlur) {
-                    delete that.cancelBlur;
-                    $(trigger).focus();
-                    return;
-                }
-
-                that.hide();
-            })
-
-            // clicking on the scrollbar causes focus to shift to the body
-            // on IE, use jquery ui autocomplete solution
-            this.$element.on('mousedown.autocomplete', function(e){
-                e.preventDefault();
-
-                that.cancelBlur = true;
-                setTimeout(function() {
-                    delete that.cancelBlur;
-                }, 50);
-
-                var itemsEl = that.$element[0];
-                if(!$(e.target).closest(".egeui-select-item" ).length) {
-                    setTimeout(function(){
-                        $(document).one("mousedown", function(event) {
-                            if(event.target !== trigger && event.target !== itemsEl && !$.contains(itemsEl, event.target)) {
-                                that.hide();
-                            }
-                        });
-                    }, 50)
-                }
-            })
-        },
-        _handleKeydown: function (e) {
-            var keyName = specialKeyCodeMap[e.which];
-            if (keyName) {
-                var eventKey = 'key' + capitalize(keyName);
-                $$(this.options.trigger).trigger(e.type = eventKey, e);
-            }
-        },
-        _handleKeyEnter: function(e, originEvent){
+        _handleKeyEnter: function(keyName, originEvent){
             if(this.items && this.items[this.selectedIndex]){
                 !this.options.submitOnEnter && originEvent.preventDefault();
                 this.trigger('itemSelected');
                 originEvent.stopPropagation();
             }
         },
-        _handleKeyDownUp: function(e, originEvent){
-            if(e.type === 'keyUp'){
-                originEvent.preventDefault();
-            }
+        _handleKeyDownUp: function(keyName, originEvent){
+
             if(!this.items) {
                 if(this.options.allowEmptyQuery && this.query === ''){
                     this.queryData();
@@ -1378,7 +1447,7 @@
 
             this.lastIndex = this.selectedIndex;
 
-            if(e.type === 'keyDown'){
+            if(keyName === 'down'){
                 this.selectedIndex++;
             } else {
                 this.selectedIndex--;
@@ -1393,12 +1462,14 @@
 
             var row =  $(this.items[this.selectedIndex]);
             if(!row[0]) return;
-            var rowTop = row.position().top;
-            var delta = rowTop + row.outerHeight() - this.$element.height();
+            var rowTop = row.offset().top - row.parent().offset().top;
+            var scrollElement = this.$('[data-role="items"]');
+            // TODO: add 18 is a hack sometimes have horizontal scrollbar, not good
+            var delta = rowTop + row.outerHeight() - scrollElement.outerHeight() + 18;
             if(delta > 0) {
-                this.$element.scrollTop(delta + this.$element.scrollTop())
+                scrollElement.scrollTop(delta + scrollElement.scrollTop())
             } else if(rowTop < 0){
-                this.$element.scrollTop(Math.max(0, this.$element.scrollTop() + rowTop));
+                scrollElement.scrollTop(Math.max(0, scrollElement.scrollTop() + rowTop));
             }
         },
 
@@ -1438,15 +1509,7 @@
                text.substr(hlIndex[0], hlIndex[1]) + '</b>' +
                text.substr(hlIndex[0] + hlIndex[1], l);
     }
-    var specialKeyCodeMap = {
-        // 9: 'tab',
-        27: 'esc',
-        // 37: 'left',
-        // 39: 'right',
-        13: 'enter',
-        38: 'up',
-        40: 'down'
-    };
+
     function escapeKeyword (str){
         return str.replace(/[\-\[\]\/\{\}\(\)\*\+\?\.\\\^\$\|]/g, "\\$&");
     }
@@ -1454,41 +1517,6 @@
         a = (a || '').replace(/^\s*/g, '').replace(/\s{2,}/g, ' ');
         b = (b || '').replace(/^\s*/g, '').replace(/\s{2,}/g, ' ');
         return a === b;
-    }
-    function acBindEvent(type, element, fn){
-        type += EVENT_NAMESPACE_AUTOCOMPLETE;
-        $$(element).on(type, fn);
-    }
-    var lteIE9 = /\bMSIE [6789]\.0\b/.test(navigator.userAgent);
-    // bind text change event
-    function bindTextchange(element){
-        if (lteIE9) {
-            var elementValue = element.value;
-            element.attachEvent("onpropertychange", function(ev){
-                if (ev.propertyName !== "value") return;
-                var value = ev.srcElement.value;
-                if (value === elementValue) return;
-                elementValue = value;
-                $(element).trigger("textchange");
-            });
-            $(element).on("selectionchange keyup keydown", function() {
-                if (element.value !== elementValue) {
-                    elementValue = element.value;
-                    $(element).trigger("textchange");
-                }
-            });
-        } else {
-            $(element).on("input", function(e) {
-                // if (element.nodeName !== "TEXTAREA") {
-                $(element).trigger("textchange");
-                // }
-            });
-        }
-    }
-    function wrapFn(fn, context) {
-        return function () {
-            fn.apply(context, arguments);
-        }
     }
     function capitalize(str) {
         return str.replace(/^([a-z])/, function (f, m) {
@@ -1518,7 +1546,7 @@
                         '}})</span>'
                     ].join('');
                 },
-                selectTpl: '<div class="{{classPrefix}}"><ul data-role="items"></ul></div>',
+                selectTpl: '<div class="{{classPrefix}}"><ul data-role="items" class="item-list"></ul></div>',
                 inputMinWidth: 60,
                 showOnClick: true,
                 delay: 400,
@@ -1572,14 +1600,6 @@
                     that.insertItem(data);
                 }
                 that.trigger('add', data);
-            }).on('inputEmptied', function(){
-                that.trigger('inputEmptied');
-            })
-
-            this.input.on('keydown.contactselect', function(e){
-                if(e.which === 8 && this.value === '' && that.items.length){
-                    that.removeItem(that.items.length - 1)
-                }
             })
 
             if(this.$element.attr('placeholder')) this.input.attr('placeholder', this.$element.attr('placeholder'));
@@ -1594,6 +1614,11 @@
                     } else {
                         this.selector.queryData('');
                     }
+                }
+            },
+            "keydown input": function(ev){
+                if(ev.which === 8 && ev.target.value === '' && this.items.length){
+                    this.removeItem(this.items.length - 1)
                 }
             },
             "click [data-role='remove']": "removeItem"
@@ -1613,7 +1638,11 @@
             }
 
             var re = /(.*?)\{\{([\w\-]+)\}\}(.*?)/g;
-            var contactTpl = this.options.contactTpl.replace(re, function(match, p1, p2, p3){
+            var contactTpl = this.options.contactTpl;
+            if($.isFunction(contactTpl)){
+                contactTpl = contactTpl(data);
+            }
+            contactTpl = contactTpl.replace(re, function(match, p1, p2, p3){
                 return  p1 + data[p2] + p3;
             })
             var insertItem = $(contactTpl).insertBefore(this.input);
@@ -1797,6 +1826,17 @@
             $node.remove();
         },
 
+        expandNode: function(node){
+            var id = this._getNodeId(node);
+            var $node = this.$('#etn' + id).parent();
+            if(!$node[0]) return;
+            this._toggleNode($node, 'expand');
+            var self = this;
+            $.each($node.parents('[data-role="node"]'), function(){
+                self._toggleNode($(this), 'expand')
+            })
+        },
+
         _getNodeId: function(node){
             var id = node;
             if($.isPlainObject(node)){
@@ -1917,6 +1957,365 @@
         }
     })
 
+    // TextComplete Widget ============================================ //
+    var TextCompleteAdapter = {};
+    (function(){
+        // TextComplete Adapter. Thanks jQuery.textcomplete
+        // Inherit from Input widget
+        var Adapter = Input.extend({
+
+            setup: function(){
+                Input.superClass.setup.call(this);
+                // bind keyup events on element
+                this.options.events =  {
+                    'keyup': function(ev){
+                        if(this.options.delay && ev.which !== 8){
+                            this.delayTimer && clearTimeout(this.delayTimer);
+                            this.delayTimer = setTimeout(wrapFn(function(){
+                                this._keyUp(ev);
+                                this.delayTimer = null;
+                            }, this), this.options.delay)
+                        } else {
+                            this._keyUp(ev);
+                        }
+                    }
+                }
+                this.render();
+            },
+
+            select: function (/* value, strategy */) {
+                throw new Error('Not implemented');
+            },
+
+            destroy: function () {
+                this.$element.off('.' + this.cid);
+                Adapter.superClass.destroy.call(this);
+            },
+            // Returns the caret's relative coordinates from body's left top corner.
+            // FIXME: Calculate the left top corner of `this.option.appendTo` element.
+            getCaretPosition: function () {
+                var position = this._getCaretRelativePosition();
+                var offset = this.$element.offset();
+                position.top += offset.top;
+                position.left += offset.left;
+                position.collision = 'fit';
+                return position;
+            },
+            focus: function () {
+                this.$element.focus();
+            },
+
+            _keyUp: function(e){
+                if (this._skipSearch(e)) return;
+                this.trigger('search', this.getTextFromHeadToCaret());
+            },
+            // Suppress searching if it returns true.
+            _skipSearch: function (ev) {
+                switch (ev.keyCode) {
+                    case 40: // DOWN
+                    case 38: // UP
+                    return true;
+                }
+                if (ev.ctrlKey) {
+                    switch (ev.keyCode) {
+                        case 78: // Ctrl-N
+                        case 80: // Ctrl-P
+                        return true;
+                    }
+                }
+            },
+        })
+
+        var Textarea = Adapter.extend({
+            // Update the textarea with the given value and strategy.
+            select: function (value, strategy) {
+                var pre = this.getTextFromHeadToCaret();
+                var post = this.element.value.substring(this.element.selectionEnd);
+                var newSubstr = strategy.replace(value);
+                if ($.isArray(newSubstr)) {
+                    post = newSubstr[1] + post;
+                    newSubstr = newSubstr[0];
+                }
+                pre = pre.replace(strategy.match, newSubstr);
+                this.$element.val(pre + post);
+                this.element.selectionStart = this.element.selectionEnd = pre.length;
+            },
+
+            // Private methods
+            // ---------------
+
+            // Returns the caret's relative coordinates from textarea's left top corner.
+            //
+            // Browser native API does not provide the way to know the position of
+            // caret in pixels, so that here we use a kind of hack to accomplish
+            // the aim. First of all it puts a dummy div element and completely copies
+            // the textarea's style to the element, then it inserts the text and a
+            // span element into the textarea.
+            // Consequently, the span element's position is the thing what we want.
+            _getCaretRelativePosition: function () {
+                var text = this.getTextFromHeadToCaret();
+                // TODO: fix IETextarea quirks wrap space when line break
+                if(typeof this.element.selectionEnd !== 'number'){
+                    text = text.replace(/\n/g, '');
+                }
+                var dummyDiv = $('<div></div>').css(this._copyCss())
+                    .text(text);
+                var span = $('<span></span>').text('.').appendTo(dummyDiv);
+                this.$element.before(dummyDiv);
+                var position = span.position();
+                position.top += span.height() - this.$element.scrollTop();
+                position.lineHeight = span.height();
+                dummyDiv.remove();
+                return position;
+            },
+
+            _copyCss: function () {
+                return $.extend({
+                    // Set 'scroll' if a scrollbar is being shown; otherwise 'auto'.
+                    overflow: this.element.scrollHeight > this.element.offsetHeight ? 'scroll' : 'auto'
+                }, Textarea.DIV_PROPERTIES, this._getStyles());
+            },
+
+            _getStyles: (function ($) {
+              var color = $('<div></div>').css(['color']).color;
+              if (typeof color !== 'undefined') {
+                    return function () {
+                      return this.$element.css(Textarea.COPY_PROPERTIES);
+                    };
+              } else { // jQuery < 1.8
+                    return function () {
+                        var $el = this.$element;
+                        var styles = {};
+                        $.each(Textarea.COPY_PROPERTIES, function (i, property) {
+                            styles[property] = $el.css(property);
+                        });
+                        return styles;
+                    };
+              }
+            })($),
+
+            getTextFromHeadToCaret: function () {
+                return this.element.value.substring(0, this.element.selectionEnd);
+            }
+        })
+
+        Textarea.DIV_PROPERTIES = {
+            left: -9999,
+            position: 'absolute',
+            top: 0,
+            whiteSpace: 'pre-wrap'
+        }
+
+        Textarea.COPY_PROPERTIES = [
+            'border-width', 'font-family', 'font-size', 'font-style', 'font-variant',
+            'font-weight', 'height', 'letter-spacing', 'word-spacing', 'line-height',
+            'text-decoration', 'text-align', 'width', 'padding-top', 'padding-right',
+            'padding-bottom', 'padding-left', 'margin-top', 'margin-right',
+            'margin-bottom', 'margin-left', 'border-style', 'box-sizing', 'tab-size'
+        ];
+
+        TextCompleteAdapter['Textarea'] = Textarea;
+
+        // IETextarea adapter
+        var sentinelChar = '吶';
+        var IETextarea = Textarea.extend({
+
+            setup: function(){
+                IETextarea.superClass.setup.call(this);
+                $('<span>' + sentinelChar + '</span>').css({
+                    position: 'absolute',
+                    top: -9999,
+                    left: -9999
+                }).insertBefore(this.element);
+            },
+
+            select: function (value, strategy) {
+                var pre = this.getTextFromHeadToCaret();
+                var post = this.element.value.substring(pre.length);
+                var newSubstr = strategy.replace(value);
+                if ($.isArray(newSubstr)) {
+                    post = newSubstr[1] + post;
+                    newSubstr = newSubstr[0];
+                }
+                pre = pre.replace(strategy.match, newSubstr);
+                this.$element.val(pre + post);
+                this.element.focus();
+                var range = this.element.createTextRange();
+                range.collapse(true);
+                range.moveEnd('character', pre.length);
+                range.moveStart('character', pre.length);
+                range.select();
+            },
+
+            getTextFromHeadToCaret: function () {
+                this.element.focus();
+                var range = document.selection.createRange();
+                range.moveStart('character', -this.element.value.length);
+                var arr = range.text.split(sentinelChar)
+                return arr.length === 1 ? arr[0] : arr[1];
+            }
+        });
+
+        TextCompleteAdapter['IETextarea'] = IETextarea;
+
+        // ContentEditable adapter
+        var ContentEditable = Adapter.extend({
+
+            select: function (value, strategy) {
+                var pre = this.getTextFromHeadToCaret();
+                var sel = window.getSelection()
+                var range = sel.getRangeAt(0);
+                var selection = range.cloneRange();
+                selection.selectNodeContents(range.startContainer);
+                var content = selection.toString();
+                var post = content.substring(range.startOffset);
+                var newSubstr = strategy.replace(value);
+                if ($.isArray(newSubstr)) {
+                    post = newSubstr[1] + post;
+                    newSubstr = newSubstr[0];
+                }
+                pre = pre.replace(strategy.match, newSubstr);
+                range.selectNodeContents(range.startContainer);
+                range.deleteContents();
+                var node = document.createTextNode(pre + post);
+                range.insertNode(node);
+                range.setStart(node, pre.length);
+                range.collapse(true);
+                sel.removeAllRanges();
+                sel.addRange(range);
+            },
+
+            _getCaretRelativePosition: function () {
+                var range = window.getSelection().getRangeAt(0).cloneRange();
+                var node = document.createElement('span');
+                range.insertNode(node);
+                range.selectNodeContents(node);
+                range.deleteContents();
+                var $node = $(node);
+                var position = $node.offset();
+                position.left -= this.$element.offset().left;
+                position.top += $node.height() - this.$element.offset().top;
+                position.lineHeight = $node.height();
+                // var dir = this.$element.attr('dir') || this.$element.css('direction');
+                // if (dir === 'rtl') {
+                //     position.left -= this.listView.$el.width();
+                // }
+                $node.remove();
+                return position;
+            },
+
+            getTextFromHeadToCaret: function () {
+                var range = window.getSelection().getRangeAt(0);
+                var selection = range.cloneRange();
+                selection.selectNodeContents(range.startContainer);
+                return selection.toString().substring(0, range.startOffset);
+            }
+        });
+
+        TextCompleteAdapter['ContentEditable'] = ContentEditable;
+
+    })()
+
+    var TextComplete = Widget.extend({
+
+        setup: function () {
+            var defaults = {
+                delay: 200
+            }
+            this.options = $.extend(defaults, this.options);
+            TextComplete.superClass.setup.call(this);
+
+            this.strategies = this.options.strategies;
+
+            var Adapter, adapter_class;
+            if (this.$element.is('textarea')) {
+                adapter_class = typeof this.element.selectionEnd === 'number' ? 'Textarea' : 'IETextarea';
+            } else {
+                adapter_class = 'ContentEditable';
+            }
+
+            Adapter = TextCompleteAdapter[adapter_class];
+
+            this.adapter = new Adapter({
+                element: this.element,
+                delay: this.options.delay
+            }).on('search', this.search, this)
+
+            var dropdown_options = $.extend({
+                isTextComplete: true,
+                inputAdapter: this.adapter,
+                changeOnSelect: false,
+                allowEmptyQuery: true,
+                selectFirst: true,
+                themeClass: this.options.themeClass,
+                align: null
+            }, this.options.dropdown_options || {});
+            this.dropdown = new AutoComplete(dropdown_options).before('show', function(){
+                this.setPosition(this.input.getCaretPosition());
+            }).on('selected', function(data){
+                this.adapter.select(data, this.strategy);
+            }, this).after('hide', function(){
+                this._term = null;
+            }, this);
+
+            var that = this;
+            $.map(this.strategies, function(strategy){
+                if(isString(strategy.data)){
+                    strategy.data = {source: strategy.data};
+                }
+                strategy.dataSource = new DataSource(strategy.data);
+                strategy.dataSource.on('data', function(data){
+                    this.dropdown.data = data;
+                    if(data.length){
+                        this.dropdown._fillItems();
+                    } else {
+                        this.dropdown.hide();
+                    }
+                }, that);
+                strategy.index = strategy.index || 1;
+            })
+        },
+
+        destroy: function(){
+            delete this.strategies;
+            this.dropdown.destroy();
+            TextComplete.superClass.destroy.call(this);
+        },
+
+        search: function(text){
+            text != null || (text = this.adapter.getTextFromHeadToCaret());
+            var searchQuery = this._extractSearchQuery(text);
+            if (searchQuery.length) {
+                var term = searchQuery[1];
+                // Ignore shift-key, ctrl-key and so on.
+                if (this._term === term) return;
+                this._term = term;
+                this._search.apply(this, searchQuery);
+            } else {
+                this.dropdown.hide();
+            }
+        },
+
+        _search: function(strategy, term, match) {
+            this.dropdown.dataSource = strategy.dataSource;
+            // TODO: access autocomplete's itemTpl options directly, not good, need getter, setter
+            this.dropdown.options.itemTpl = strategy.template;
+            this.dropdown.input.trigger('change', term)
+            this.strategy = strategy;
+        },
+
+        _extractSearchQuery: function (text) {
+            for (var i = 0; i < this.strategies.length; i++) {
+                var strategy = this.strategies[i];
+                var match = text.match(strategy.match);
+                if(match){
+                    return [strategy, match[strategy.index], match];
+                }
+            }
+            return [];
+        }
+    });
+
 
     var pub = {};
     pub.Overlay = Overlay;
@@ -1926,6 +2325,7 @@
     pub.ConfirmBox = ConfirmBox;
     pub.AutoComplete = AutoComplete;
     pub.ContactSelect = ContactSelect;
+    pub.TextComplete = TextComplete;
     pub.Tree = Tree;
 
     return pub;
